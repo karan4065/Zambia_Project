@@ -1,0 +1,27 @@
+.selectB{
+  margin-bottom: 6px;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  
+}
+
+.occupied {
+  margin-top: 20px;
+}
+
+.occupied p {
+  margin: 5px 0;
+}
+
+.import_export {
+  display: flex;
+  
+}
+
+.innerbox{
+  width : 50%;
+  margin: 2px;
+}

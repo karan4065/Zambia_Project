@@ -1,0 +1,48 @@
+.navbar {
+  display: flex;
+  flex-direction: column;
+  width: 200px;
+  padding-left: 30px;
+  padding-top: 30px;
+  background-color: #f4f4f4;
+}
+
+.navbar ul {
+  margin-top: 30px;
+  list-style-type: none;
+  padding: 0;
+}
+
+.navbar li {
+  margin: 5px 0;
+}
+
+.logout{
+  width: min-content;
+  padding: 10px 40px;
+}
+
+.navbar a {
+  text-decoration: none;
+  color: #333;
+  font-size: 18px;
+  transition: color 0.3s;
+}
+
+.navbar a.active {
+  font-weight: bolder;
+  color: black; 
+}
+
+.app_flex {
+  display: flex;
+  align-items: center;
+}
+
+.p-text {
+  font-size: 16px;
+}
+
+.navbarHeading{
+  font-size: 20px;
+}
