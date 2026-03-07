@@ -355,11 +355,13 @@ export const DownloadScholarshipStudent = async()=>{
 
 export const getInstitutionNameAndLogo = async () => {
   try {
-    const response = await axios.get("http://localhost:5000/getChanges");
+    const year = localStorage.getItem('selectedSession');
+    const url = "http://localhost:5000/getChanges" + (year ? `?year=${encodeURIComponent(year)}` : '');
+    const response = await axios.get(url);
     return response.data;
   } catch (error) {
     console.error("Error fetching institution name:", error);
-    return "School"; // Fallback in case of an error
+    return { Institution_name: "School", SchoolLogo: null };
   }
 };
 
@@ -502,6 +504,20 @@ export const deleteBusStation = async (id: number) => {
 };
 
 // Dashboard APIs
+export const fetchDashboardOverview = async () => {
+  const response = await axios.get(`http://localhost:5000/api/dashboard/summary`);
+  return response.data;
+};
+
+export const fetchDashboardPerformance = async () => {
+  const response = await axios.get(`http://localhost:5000/api/dashboard/student-performance`);
+  return response.data;
+};
+
+export const fetchDashboardClassStats = async () => {
+  const response = await axios.get(`http://localhost:5000/api/dashboard/class-stats`);
+  return response.data;
+};
 export const fetchDashboardStudents = async () => {
   try {
     const response = await axios.get("http://localhost:5000/dashboard/students");

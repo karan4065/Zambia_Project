@@ -8,40 +8,51 @@ datasource db {
 }
 
 model Student {
-  id                 Int           @id @default(autoincrement())
-  fullName           String
-  gender             Gender
-  dateOfBirth        DateTime      @default(now()) @db.Date
-  rollNo             Int
-  standard           String
-  adhaarCardNo       BigInt
-  scholarshipApplied Boolean
-  remark             String?
-  address            String
-  photoUrl           String?
-  status             StudentStatus @default(None)
-  session            String
-  category           String
-  caste              String
-  attendanceRecords  Attendance[]
-  fees               Fee[]
-  marks              Marks[]
-  parents            Parent[]
+  id                    Int                @id @default(autoincrement())
+  fullName              String
+  gender                Gender
+  dateOfBirth           DateTime           @default(now()) @db.Date
+  rollNo                Int
+  standard              String
+  bloodGroup            String?
+  scholarshipApplied    Boolean
+  lunchAccepted         Boolean            @default(false)
+  lunchPrice            Float?
+  busAccepted           Boolean            @default(false)
+  busStationId          Int?
+  busPrice              Float?
+  residentialAddress    String?
+  correspondenceAddress String?
+  photoUrl              String?
+  remark                String?
+  nationality           String?
+  religion              String?
+  denomination          String?
+  language              String?
+  motherTongue          String?
+  status                StudentStatus      @default(None)
+  session               String
+  attendanceRecords     Attendance[]
+  fees                  Fee[]
+  marks                 Marks[]
+  parents               Parent[]
+  busStation            BusStation?        @relation(fields: [busStationId], references: [id])
+  studentInventory      StudentInventory[]
 
   @@unique([standard, rollNo, session])
 }
 
 model Parent {
-  id               Int     @id @default(autoincrement())
-  fatherName       String
-  fatherOccupation String
-  motherName       String
-  motherOccupation String
-  fatherContact    BigInt
-  motherContact    BigInt
-  address          String
-  studentId        Int
-  student          Student @relation(fields: [studentId], references: [id])
+  id                   Int     @id @default(autoincrement())
+  fatherName           String
+  motherName           String
+  fatherContact        BigInt
+  motherContact        BigInt
+  distanceFromSchool   Float?
+  preferredPhoneNumber BigInt?
+  address              String
+  studentId            Int
+  student              Student @relation(fields: [studentId], references: [id])
 }
 
 model Fee {
@@ -105,30 +116,73 @@ model Subject {
 }
 
 model Standards {
-  id       Int       @unique @default(autoincrement())
-  std      String    @unique
-  subjects Subject[]
+  id        Int       @unique @default(autoincrement())
+  std       String    @unique
+  category  String?
+  totalFees Float?
+  subjects  Subject[]
 }
 
 model Control {
-  id                      Int     @unique @default(autoincrement())
+  id                      Int      @id @default(autoincrement())
+  sessionId               Int?     @unique
   number_of_hostel_bed    Int?
-  Institution_name        String? @default("School")
-  Institution_hostel_name String? @default("Hostel")
+  Institution_name        String?  @default("School")
+  Institution_hostel_name String?  @default("Hostel")
   SchoolLogo              String?
   SchoolAddress           String?
   TotalFees               Int?
+  lunchFee                Float?
+  session                 Session? @relation(fields: [sessionId], references: [id])
 }
 
 model Session {
   id        Int      @id @default(autoincrement())
   year      String   @unique
   createdAt DateTime @default(now())
+  control   Control?
 }
 
 model Installments {
   id           Int    @id @default(autoincrement())
   installments String @unique
+}
+
+model Inventory {
+  id               Int                @id @default(autoincrement())
+  itemName         String
+  category         String
+  price            Float
+  quantity         Int?
+  size             String?
+  description      String?
+  gender           String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  studentInventory StudentInventory[]
+}
+
+model StudentInventory {
+  id                Int       @id @default(autoincrement())
+  studentId         Int
+  inventoryId       Int
+  quantityPurchased Int
+  totalPrice        Float
+  purchaseDate      DateTime  @default(now())
+  inventory         Inventory @relation(fields: [inventoryId], references: [id])
+  student           Student   @relation(fields: [studentId], references: [id])
+
+  @@unique([studentId, inventoryId])
+}
+
+model BusStation {
+  id          Int       @id @default(autoincrement())
+  stationName String    @unique
+  price       Float
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  students    Student[]
 }
 
 enum Gender {

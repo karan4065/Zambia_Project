@@ -63,6 +63,7 @@ const Control: React.FC = () => {
   const [standards, setStandards] = useState<Standard[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [selectedSessionForConfig, setSelectedSessionForConfig] = useState<string>("");
+const [isLoadingConfig, setIsLoadingConfig] = useState<boolean>(false);
   const [installments, setInstallments] = useState<Installment[]>([]);
 
   const setGlobalInstallments = useSetRecoilState(installmentArr);
@@ -106,6 +107,57 @@ const Control: React.FC = () => {
       console.error('Error loading sessions:', error);
     }
   };
+
+  // when a session is selected we load its existing control configuration
+  useEffect(() => {
+    const fetchConfig = async () => {
+      if (!selectedSessionForConfig) return;
+      setIsLoadingConfig(true);
+      try {
+        const cfg = await fetchControlConfig(selectedSessionForConfig);
+        if (cfg) {
+          setInstitutionName(cfg.Institution_name || '');
+          setHostelName(cfg.Institution_hostel_name || '');
+          setSchoolAddress(cfg.SchoolAddress || '');
+          setNum_of_beds(cfg.number_of_hostel_bed || 0);
+          setTotalFee(cfg.TotalFees || 0);
+          setLunchFee(cfg.lunchFee || 0);
+          setUrl(cfg.SchoolLogo || '');
+        }
+      } catch (e) {
+        console.error('Failed to load control config for session', e);
+      } finally {
+        setIsLoadingConfig(false);
+      }
+    };
+    fetchConfig();
+  }, [selectedSessionForConfig]);
+
+  // fetch config for selected session
+  useEffect(() => {
+    const fetchConfig = async () => {
+      if (!selectedSessionForConfig) return;
+      setIsLoadingConfig(true);
+      try {
+        const cfg = await fetchControlConfig(selectedSessionForConfig);
+        if (cfg) {
+          setInstitutionName(cfg.Institution_name || '');
+          setHostelName(cfg.Institution_hostel_name || '');
+          setSchoolAddress(cfg.SchoolAddress || '');
+          setNum_of_beds(cfg.number_of_hostel_bed || 0);
+          setTotalFee(cfg.TotalFees || 0);
+          setLunchFee(cfg.lunchFee || 0);
+          setUrl(cfg.SchoolLogo || '');
+        }
+      } catch (e) {
+        console.error('Failed to load control config for session', e);
+      } finally {
+        setIsLoadingConfig(false);
+      }
+    };
+
+    fetchConfig();
+  }, [selectedSessionForConfig]);
 
   const loadInstallments = async () => {
     try {

@@ -199,13 +199,17 @@ const App: React.FC = () => {
         >
           {isNavbarOpen ? <div>Close</div> : <div>Open</div>}
         </button>
-        <div style={{ display: "flex", alignItems: "center" }}>
-          <img
-            src={InstitueLogo}
-            style={{ width: "40px", height: "40px", paddingRight: "10px" }}
-            alt=""
-          />
-          <span style={{ fontSize: "20px", fontWeight: "semibold" }}>{InstitueName}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          {InstitueLogo ? (
+            <img
+              src={InstitueLogo}
+              style={{ height: "45px", width: "auto", objectFit: "contain", borderRadius: "5px" }}
+              alt="School Logo"
+            />
+          ) : null}
+          <h2 style={{ fontSize: "20px", fontWeight: "600", color: "white", margin: 0 }}>
+            {InstitueName || "School Name"}
+          </h2>
         </div>
         <div>ERP - Pallotii</div>
       </div>

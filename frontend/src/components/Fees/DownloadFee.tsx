@@ -23,7 +23,7 @@ const DownloadFee : React.FC = () => {
         }
       };
   return (
-    <div style={{marginTop:"-20px"}}>
+    <div className="action-button-container">
         <button onClick={handleDownload}>Download Fees</button>
     </div>
   )

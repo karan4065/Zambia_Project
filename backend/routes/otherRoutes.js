@@ -315,28 +315,61 @@ router.get('/reportsdata', async (req, res) => {
 
 
 router.post("/changesFromControlPanel", async (req, res) => {
-  const { number_of_hostel_bed, institutioName, hostelName, schoolAddress, totalFee, schoolLogo } = req.body;
+  const { number_of_hostel_bed, institutioName, hostelName, schoolAddress, totalFee, schoolLogo, year, lunchFee } = req.body;
+
+  if (!year) {
+    return res.status(400).json({ error: 'Session year is required' });
+  }
 
   try {
-    const existingRecord = await prisma.control.findFirst();
+    // Find the session by year
+    const sessionRecord = await prisma.session.findUnique({
+      where: { year }
+    });
+
+    if (!sessionRecord) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    // Check if control record exists for this session
+    let existingRecord = await prisma.control.findUnique({
+      where: { sessionId: sessionRecord.id }
+    });
 
     const payload = {
+      sessionId: sessionRecord.id,
       number_of_hostel_bed: number_of_hostel_bed ? parseInt(number_of_hostel_bed) : undefined,
       Institution_name: institutioName,
       Institution_hostel_name: hostelName,
       SchoolAddress: schoolAddress,
       TotalFees: totalFee ? parseInt(totalFee) : undefined,
       SchoolLogo: schoolLogo,
+      lunchFee: lunchFee ? parseFloat(lunchFee) : undefined,
     };
+
+    if (!existingRecord) {
+      // look for a legacy control record with null sessionId
+      existingRecord = await prisma.control.findFirst({ where: { sessionId: null } });
+    }
 
     if (!existingRecord) {
       const newRecord = await prisma.control.create({ data: payload });
       return res.status(201).json(newRecord);
     }
 
+    // if we found a legacy record and it didn't have sessionId, ensure we set it
     const updatedRecord = await prisma.control.update({
       where: { id: existingRecord.id },
-      data: payload
+      data: {
+        sessionId: sessionRecord.id,
+        number_of_hostel_bed: payload.number_of_hostel_bed,
+        Institution_name: payload.Institution_name,
+        Institution_hostel_name: payload.Institution_hostel_name,
+        SchoolAddress: payload.SchoolAddress,
+        TotalFees: payload.TotalFees,
+        SchoolLogo: payload.SchoolLogo,
+        lunchFee: payload.lunchFee,
+      }
     });
     return res.status(200).json(updatedRecord);
   } catch (error) {
@@ -347,9 +380,53 @@ router.post("/changesFromControlPanel", async (req, res) => {
 
 router.get("/getChanges", async (req, res) => {
   try {
-    const controlData = await prisma.control.findFirst();
-    if (controlData) return res.status(200).json(controlData);
-    return res.status(404).json({ message: "Data not found" });
+    const { year } = req.query;
+
+    if (!year) {
+      // If no year is provided, return the first control record for backward compatibility
+      const controlData = await prisma.control.findFirst();
+      if (controlData) return res.status(200).json(controlData);
+      return res.status(404).json({ message: "Data not found" });
+    }
+
+    // Find the session by year
+    const sessionRecord = await prisma.session.findUnique({
+      where: { year }
+    });
+
+    if (!sessionRecord) {
+      return res.status(404).json({ message: "Session not found" });
+    }
+
+    // Get control record for this session
+    let controlData = await prisma.control.findUnique({
+      where: { sessionId: sessionRecord.id }
+    });
+
+    if (controlData) {
+      return res.status(200).json(controlData);
+    }
+
+    // if no session-specific record, look for a default record without a sessionId
+    controlData = await prisma.control.findFirst({
+      where: { sessionId: null }
+    });
+    if (controlData) {
+      return res.status(200).json(controlData);
+    }
+
+    // If still no config for this session, return blank defaults
+    return res.status(200).json({
+      id: null,
+      sessionId: sessionRecord.id,
+      number_of_hostel_bed: null,
+      Institution_name: "School",
+      Institution_hostel_name: "Hostel",
+      SchoolLogo: null,
+      SchoolAddress: null,
+      TotalFees: null,
+      lunchFee: null,
+    });
   } catch (error) {
     console.error('Error in getChanges:', error);
     res.status(500).json({ error: "Server error", details: error.message });
@@ -601,7 +678,6 @@ router.get('/scholarshipStudents', async (req, res) => {
       { header: 'Date of Birth', key: 'dateOfBirth', width: 15 },
       { header: 'Roll No', key: 'rollNo', width: 10 },
       { header: 'Standard', key: 'standard', width: 10 },
-      { header: 'Adhaar Card No', key: 'adhaarCardNo', width: 20 },
       { header: 'Scholarship Applied', key: 'scholarshipApplied', width: 15 },
       { header: 'Address', key: 'address', width: 30 },
       { header: 'Photo URL', key: 'photoUrl', width: 30 },
@@ -630,7 +706,6 @@ router.get('/scholarshipStudents', async (req, res) => {
         dateOfBirth: student.dateOfBirth ? student.dateOfBirth.toISOString().split('T')[0] : 'N/A',
         rollNo: student.rollNo || 'N/A',
         standard: student.standard || 'N/A',
-        adhaarCardNo: student.adhaarCardNo ? student.adhaarCardNo.toString() : 'N/A',
         scholarshipApplied: student.scholarshipApplied ? 'Yes' : 'No',
         address: student.address || 'N/A',
         photoUrl: student.photoUrl || '',

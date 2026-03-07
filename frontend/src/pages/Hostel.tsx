@@ -291,19 +291,20 @@ const Hostel = () => {
           <div className='row'>
   
             <h2>Hostel bed rooms (Page {currentPage} of {totalPages}):</h2>
-            <div>
-              {paginatedBeds.map((ele, index) => (
-                <button
-                  key={index}
-                  onClick={() => details(ele)}
-                  style={{
-                    backgroundColor: available.includes(ele) ? 'black' : '#b9936c',  
-                    marginLeft: '10px',
-                  }}
-                >
-                  {ele}
-                </button>
-              ))}
+            <div className="beds-grid">
+              {paginatedBeds.map((ele, index) => {
+                const isAvailable = available.includes(ele);
+                return (
+                  <button
+                    key={index}
+                    onClick={() => details(ele)}
+                    className={isAvailable ? "bed-available" : "bed-occupied"}
+                    style={{ marginLeft: '10px', marginBottom: '10px' }}
+                  >
+                    {ele}
+                  </button>
+                );
+              })}
             </div>
 
 

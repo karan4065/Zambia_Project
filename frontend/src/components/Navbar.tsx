@@ -2,6 +2,8 @@ import { NavLink } from "react-router-dom";
 import "../styles/navbar.css";
 import { SetStateAction, useState, useEffect } from "react";
 import { getCurrentSession, fetchControlConfig } from "../apis/api";
+import { useSetRecoilState } from "recoil";
+import { handleInstitutionName, handleInstitutionLogo } from "../store/store";
 import axios from "axios";
 
 interface NavbarProps {
@@ -31,7 +33,8 @@ const Navbar: React.FC<NavbarProps> = ({ auth, logout }) => {
   );
   const [years, setYears] = useState<string[]>([]);
   const [sessionSelected, setSessionSelected] = useState(!!savedSession);
-  const [schoolName, setSchoolName] = useState<string>("School");
+  const setSchoolName = useSetRecoilState(handleInstitutionName);
+  const setSchoolLogo = useSetRecoilState(handleInstitutionLogo);
 
   useEffect(() => {
     // On component mount, check if there's a saved session and load available sessions
@@ -47,10 +50,11 @@ const Navbar: React.FC<NavbarProps> = ({ auth, logout }) => {
         const data = resp.data || [];
         const yearsArr = Array.isArray(data) ? data.map((s: any) => s.year || s) : [];
         setYears(yearsArr.length ? yearsArr : ["2024-2025"]);
-        // Fetch school name for saved session
+        // Fetch school name and logo for saved session
         const sessionToUse = saved || yearsArr[0];
         const cfg = await fetchControlConfig(sessionToUse);
         setSchoolName(cfg?.Institution_name || "School");
+        setSchoolLogo(cfg?.SchoolLogo || "");
       } catch (err) {
         console.error("Failed to load sessions:", err);
         setYears(["2024-2025"]);
@@ -60,18 +64,29 @@ const Navbar: React.FC<NavbarProps> = ({ auth, logout }) => {
     loadSessions();
     const handler = async (e: any) => {
       const updatedYear = e?.detail?.year;
-      if (updatedYear && updatedYear === selectYear) {
-        const cfg = await fetchControlConfig(selectYear as string);
+      const currentYear = localStorage.getItem("selectedSession") || "2024-2025";
+      if (updatedYear && updatedYear === currentYear) {
+        const cfg = await fetchControlConfig(updatedYear);
         setSchoolName(cfg?.Institution_name || "School");
+        setSchoolLogo(cfg?.SchoolLogo || "");
       }
     };
     window.addEventListener('controlUpdated', handler as EventListener);
     return () => window.removeEventListener('controlUpdated', handler as EventListener);
   }, []);
 
-  const handleYearChange = (event: { target: { value: SetStateAction<string> } }) => {
+  const handleYearChange = async (event: { target: { value: SetStateAction<string> } }) => {
     const selectedValue = event.target.value;
     setSelectedYear(selectedValue);
+    // preview name immediately, fetch config for this session
+    try {
+      const cfg = await fetchControlConfig(selectedValue as string);
+      setSchoolName(cfg?.Institution_name || "School");
+      setSchoolLogo(cfg?.SchoolLogo || "");
+    } catch (err) {
+      console.error("Failed to load config on selection change", err);
+      setSchoolName("School");
+    }
   };
 
   const submitSession = async () => {
@@ -92,6 +107,7 @@ const Navbar: React.FC<NavbarProps> = ({ auth, logout }) => {
         // Load control config for selected session
         const cfg = await fetchControlConfig(selectYear as string);
         setSchoolName(cfg?.Institution_name || "School");
+        setSchoolLogo(cfg?.SchoolLogo || "");
         // Removed window.location.reload() - let React handle state update instead
       } else {
         console.error("Unexpected response status:", response.status);
@@ -122,13 +138,10 @@ const Navbar: React.FC<NavbarProps> = ({ auth, logout }) => {
               </option>
             ))}
           </select>
-          <button
-            style={{ maxWidth: "max-content" }}
-            onClick={submitSession}
-          >
+          <button style={{ width: "150px", padding: "8px", marginTop: "12px", backgroundColor: "#313970",color:"white" }} onClick={submitSession}>
             Select Session
           </button>
-          <button className="logout" onClick={logout}>
+          <button style={{ width: "150px", padding: "8px", marginTop: "12px", backgroundColor: "#dc2626", color: "white" }} onClick={logout}>
             Logout
           </button>
         </div>
@@ -146,7 +159,7 @@ const Navbar: React.FC<NavbarProps> = ({ auth, logout }) => {
               </option>
             ))}
           </select>
-          <button style={{ maxWidth: "max-content" }} onClick={submitSession}>
+          <button style={{ width: "150px", padding: "10px", marginTop: "15px", backgroundColor: "#313970", color: "white" }} onClick={submitSession}>
             Select Session
           </button>
           <ul style={{ paddingLeft: "5px" }}>
@@ -166,7 +179,7 @@ const Navbar: React.FC<NavbarProps> = ({ auth, logout }) => {
                 ))}
           </ul>
           {auth && (
-            <button className="logout" onClick={logout}>
+            <button style={{ width: "150px", padding: "10px", marginTop: "15px", backgroundColor: "#dc2626", color: "white" }} onClick={logout}>
               Logout
             </button>
           )}

@@ -16,6 +16,7 @@ const control = require("./routes/controlRoutes");
 const other = require("./routes/otherRoutes");
 const inventory = require("./routes/inventoryRoutes");
 const bus = require("./routes/busRoutes");
+const dashboard = require("./routes/dashboardRoutes");
 
 const rag = require("./routes/ragRoutes");
 
@@ -103,6 +104,7 @@ app.use(other);
 app.use(inventory);
 app.use(bus);
 app.use(rag);
+app.use("/api", dashboard);
 
 // Start server
 

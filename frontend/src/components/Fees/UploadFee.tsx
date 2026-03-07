@@ -23,13 +23,11 @@ const UploadFee = () => {
   };
 
   return (
-    <div style={{marginTop:"-20px"}}>
-      <span>
-          <input style={{margin : "0"}} accept=".xlsx, .xls" onChange={handleFileChange} type="file"  />
-      </span>
-      <span style={{marginLeft : "15px"}}>
-        <button onClick={handleUpload}>Upload</button>
-      </span>
+    <div className="action-button-container">
+      <div className="file-input-wrapper">
+        <input accept=".xlsx, .xls" onChange={handleFileChange} type="file" />
+      </div>
+      <button onClick={handleUpload}>Upload</button>
     </div>
   )
 }

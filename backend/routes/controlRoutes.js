@@ -23,6 +23,12 @@ async function calculateTotalPercentage(recievedData) {
     return (sumPercent / count).toFixed(2);
 }
 
+// control routes that need session context
+function getSessionFromReq(req) {
+  // session year stored by /setSession in server.js
+  return req.session || req.query.session || req.body.year || null;
+}
+
 router.post("/control/standard", async (req, res) => {
   const { std, totalFees, category } = req.body;
   try {
@@ -290,7 +296,6 @@ const promotionData = {
               dateOfBirth: oldStudent.dateOfBirth,
               rollNo: oldStudent.rollNo,  
               standard: newStandard,  
-              adhaarCardNo:oldStudent.adhaarCardNo,
               address : oldStudent.address,
               session: newSession,  
               scholarshipApplied: false,  

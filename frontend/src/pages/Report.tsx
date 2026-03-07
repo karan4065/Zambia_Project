@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import "../styles/report.css";
-import { report, fetchDashboardStudents, fetchDashboardFees, fetchDashboardTransport, fetchDashboardLunch, fetchDashboardTeachers, fetchDashboardSections, fetchFeesPending, downloadBackupZip } from "../apis/api";
+import { fetchDashboardStudents, fetchDashboardFees, fetchDashboardTransport, fetchDashboardLunch, fetchDashboardTeachers, fetchDashboardSections, fetchFeesPending, downloadBackupZip } from "../apis/api";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import JSZip from "jszip";
+import DashboardSummary from "../components/DashboardSummary";
 
 interface FeesPendingData {
   id: number;
@@ -23,9 +24,7 @@ interface SectionInfo {
 }
 
 const Report = () => {
-  const [count, setCount] = useState(0);
-  const [fee, setFee] = useState(0);
-  const [remBed, setRemBed] = useState(0);
+  // Helper function to check if session is selected
 
   // Helper function to check if session is selected
   const checkSessionSelected = (): boolean => {
@@ -61,19 +60,7 @@ const Report = () => {
     { value: "Sections", label: "Sections" },
   ];
 
-  const studentCount = async () => {
-    try {
-      const gotCount = await report();
-      setCount(gotCount.data.len);
-      setFee(gotCount.data.sumFee);
-      setRemBed(gotCount.data.sumBed);
-    } catch (error) {
-      console.log(error);
-    }
-  };
-
   useEffect(() => {
-    studentCount();
     fetchAvailableClassesAndCategories();
   }, []);
 
@@ -356,7 +343,6 @@ const Report = () => {
 
   return (
     <div className="Dashboard">
-      <h2>Dashboard</h2>
 
       {/* Tab Navigation */}
       <div className="button-group">
@@ -401,16 +387,8 @@ const Report = () => {
 
       {/* Summary Tab */}
       {activeTab === "summary" && (
-        <div className="dashboard-section">
-          <h2>Summary</h2>
-          <h3>Total Students</h3>
-          <h3 className="data">{count} students</h3>
-
-          <h3>Total Money Collected</h3>
-          <h3 className="data">{fee} ₹</h3>
-
-          <h3>Total Bed Remaining</h3>
-          <h3 className="data">{remBed}</h3>
+        <div className="dashboard-section p-0 bg-transparent shadow-none border-none">
+          <DashboardSummary />
         </div>
       )}
 

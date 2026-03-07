@@ -6,7 +6,7 @@ import { atom } from "recoil";
 
 export const handleInstitutionName = atom({
   key: "name",
-  default: "SVPCETTT",
+  default: "",
 });
 
 export const handleInstitutionLogo = atom({
