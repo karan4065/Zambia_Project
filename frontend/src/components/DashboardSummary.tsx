@@ -19,7 +19,6 @@ import {
 } from "recharts";
 import {
   Users,
-  BedDouble,
   IndianRupee,
   Bus,
   Package,
@@ -64,19 +63,14 @@ const DashboardSummary = () => {
       ]
     : [];
 
-  const pieBedsData = overview
-    ? [
-        { name: "Occupied Beds", value: overview.totalBeds - overview.availableBeds },
-        { name: "Available Beds", value: overview.availableBeds },
-      ]
-    : [];
+
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
       <h2 className="text-2xl font-bold mb-6 text-gray-800">Admin Overview</h2>
 
       {/* Top Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
         <StatCard
           icon={<Users size={24} className="text-blue-600" />}
           title="Total Students"
@@ -95,12 +89,7 @@ const DashboardSummary = () => {
           value={`₹ ${overview?.pendingFees?.toLocaleString() || 0}`}
           bgColor="bg-red-100"
         />
-        <StatCard
-          icon={<BedDouble size={24} className="text-purple-600" />}
-          title="Hostel Beds Available"
-          value={`${overview?.availableBeds || 0} / ${overview?.totalBeds || 0}`}
-          bgColor="bg-purple-100"
-        />
+
         <StatCard
           icon={<Bus size={24} className="text-orange-600" />}
           title="Bus Stations"
@@ -175,39 +164,6 @@ const DashboardSummary = () => {
           </div>
         </div>
 
-        {/* Hostel Bed Occupancy */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <h3 className="text-lg font-semibold mb-4 text-gray-700">
-            Hostel Bed Occupancy
-          </h3>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={pieBedsData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                  label={({ name, percent = 0 }) =>
-                    `${name}: ${(percent * 100).toFixed(0)}%`
-                  }
-                >
-                  {pieBedsData.map((entry, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={entry.name === "Occupied Beds" ? "#f43f5e" : "#10b981"}
-                    />
-                  ))}
-                </Pie>
-                <Tooltip />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
       </div>
     </div>
   );
@@ -215,14 +171,14 @@ const DashboardSummary = () => {
 
 const StatCard = ({ icon, title, value, bgColor }: any) => {
   return (
-    <div className="bg-white overflow-hidden shadow-sm rounded-xl border border-gray-100 p-5 hover:shadow-md transition-shadow duration-300 group">
+    <div className="bg-white overflow-hidden shadow-sm rounded-xl border border-gray-100 p-4 hover:shadow-md transition-shadow duration-300 group">
       <div className="flex items-center">
-        <div className={`p-3 rounded-lg ${bgColor} mr-4 transition-transform group-hover:scale-110 duration-300`}>
+        <div className={`p-2.5 rounded-lg ${bgColor} mr-3 transition-transform group-hover:scale-110 duration-300`}>
           {icon}
         </div>
-        <div>
-          <p className="text-sm font-medium text-gray-500 truncate mb-1">{title}</p>
-          <p className="text-2xl font-bold text-gray-900">{value}</p>
+        <div className="min-w-0">
+          <p className="text-xs font-medium text-gray-500 truncate mb-1" title={title}>{title}</p>
+          <p className="text-xl font-bold text-gray-900 truncate">{value}</p>
         </div>
       </div>
     </div>

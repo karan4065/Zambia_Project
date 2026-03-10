@@ -180,6 +180,7 @@ const App: React.FC = () => {
         style={{
           backgroundColor: "#313970",
           color: "white",
+          height: "60px",
           padding: "10px 30px",
           display: "flex",
           justifyContent: "space-between",

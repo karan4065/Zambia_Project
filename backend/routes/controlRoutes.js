@@ -157,12 +157,10 @@ router.post("/control/subjects", async (req, res) => {
       }
     }
 
-    // Create subjects linked to the standard
     const result = await prisma.subject.createMany({
       data: subjects.map((subject) => ({
         name: subject.name.trim(),
         stdId: std, // Link by `std` as defined in the schema
-        totalMarks: subject.totalMarks ? parseFloat(subject.totalMarks) : 100,
       })),
     });
 
@@ -179,8 +177,7 @@ router.get("/control/subjects/:std", async (req, res) => {
   
   try {
     const subjects = await prisma.subject.findMany({
-      where: { stdId: std },
-      include: { installment: { select: { id: true, installments: true } } }
+      where: { stdId: std }
     });
     res.status(200).json(subjects);
   } catch (error) {

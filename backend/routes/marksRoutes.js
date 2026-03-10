@@ -147,7 +147,6 @@ router.use('/uploads', express.static(path.join(__dirname, 'uploads')));
         select: {
           id: true,
           name: true,
-          totalMarks: true,
         }
       });
       res.json(subjects);
