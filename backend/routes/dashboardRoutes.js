@@ -134,4 +134,162 @@ router.get("/dashboard/class-stats", async (req, res) => {
     }
 });
 
+// GET /api/dashboard/attendance?period=daily|weekly&standard=...&date=YYYY-MM-DD&subjectId=...
+router.get("/dashboard/attendance", async (req, res) => {
+    try {
+        const session = req.session;
+        const { period, standard, date, subjectId } = req.query;
+
+        if (!period || (period !== 'daily' && period !== 'weekly')) {
+            return res.status(400).json({ error: 'Invalid or missing period parameter' });
+        }
+
+        // Helper to apply standard and optional subject filter
+        const whereBase = { session };
+        if (standard) {
+            whereBase.standard = standard;
+        }
+        if (subjectId) {
+            // subjectId may come as string; convert to int
+            const sid = parseInt(subjectId);
+            if (!isNaN(sid)) {
+                whereBase.subjectId = sid;
+            }
+        }
+
+        if (period === 'daily') {
+            // determine target date (use provided date or today)
+            let target = date ? new Date(date) : new Date();
+            // zero out time
+            target.setHours(0,0,0,0);
+            const start = new Date(target);
+            const end = new Date(target);
+            end.setDate(end.getDate() + 1);
+
+            const records = await prisma.attendance.findMany({
+                where: {
+                    ...whereBase,
+                    date: { gte: start, lt: end }
+                },
+                select: { status: true }
+            });
+
+            const total = records.length;
+            let absent = 0;
+            records.forEach(r => { if (r.status) absent += 1; });
+            const present = total - absent;
+            const percentage = total > 0 ? (present / total) * 100 : 0;
+
+            return res.status(200).json({
+                date: target.toISOString().split('T')[0],
+                total,
+                present,
+                absent,
+                percentage: percentage.toFixed(2)
+            });
+        }
+
+        if (period === 'weekly') {
+            // compute week boundaries based on provided date (or today)
+            const baseDate = date ? new Date(date) : new Date();
+            const day = baseDate.getDay(); // 0=Sunday,1=Monday
+            let diffToMonday = 1 - day;
+            if (day === 0) diffToMonday = -6; // sunday go back to previous monday
+            const monday = new Date(baseDate);
+            monday.setHours(0,0,0,0);
+            monday.setDate(monday.getDate() + diffToMonday);
+            const saturday = new Date(monday);
+            saturday.setDate(monday.getDate() + 5);
+            saturday.setHours(23,59,59,999);
+
+            const records = await prisma.attendance.findMany({
+                where: {
+                    ...whereBase,
+                    date: { gte: monday, lte: saturday }
+                },
+                select: { date: true, status: true }
+            });
+
+            // group by date string
+            const grouped = {};
+            records.forEach(r => {
+                const d = new Date(r.date);
+                d.setHours(0,0,0,0);
+                const key = d.toISOString().split('T')[0];
+                if (!grouped[key]) grouped[key] = { total: 0, absent: 0 };
+                grouped[key].total += 1;
+                if (r.status) grouped[key].absent += 1;
+            });
+
+            const result = [];
+            for (let i = 0; i < 6; i++) {
+                const d = new Date(monday);
+                d.setDate(monday.getDate() + i);
+                const key = d.toISOString().split('T')[0];
+                const entry = grouped[key] || { total: 0, absent: 0 };
+                const present = entry.total - entry.absent;
+                const percentage = entry.total > 0 ? (present / entry.total) * 100 : 0;
+                result.push({
+                    date: key,
+                    total: entry.total,
+                    present,
+                    absent: entry.absent,
+                    percentage: percentage.toFixed(2),
+                });
+            }
+
+            return res.status(200).json(result);
+        }
+
+    } catch (error) {
+        console.error("Error fetching attendance summary:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+// GET /api/dashboard/detailed-stats
+router.get("/dashboard/detailed-stats", async (req, res) => {
+    try {
+        const session = req.session;
+
+        // Gender counts
+        const genderStats = await prisma.student.groupBy({
+            by: ['gender'],
+            where: { session: session },
+            _count: { id: true }
+        });
+
+        // Category (denomination) counts
+        const categoryStats = await prisma.student.groupBy({
+            by: ['denomination'],
+            where: { session: session },
+            _count: { id: true }
+        });
+
+        // Religion counts
+        const religionStats = await prisma.student.groupBy({
+            by: ['religion'],
+            where: { session: session },
+            _count: { id: true }
+        });
+
+        // Language counts
+        const languageStats = await prisma.student.groupBy({
+            by: ['language'],
+            where: { session: session },
+            _count: { id: true }
+        });
+
+        res.status(200).json({
+            gender: genderStats.map(s => ({ type: s.gender, count: s._count.id })),
+            categories: categoryStats.map(s => ({ type: s.denomination || "General", count: s._count.id })),
+            religions: religionStats.map(s => ({ type: s.religion || "None", count: s._count.id })),
+            languages: languageStats.map(s => ({ type: s.language || "None", count: s._count.id }))
+        });
+    } catch (error) {
+        console.error("Error in dashboard detailed stats:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
 module.exports = router;

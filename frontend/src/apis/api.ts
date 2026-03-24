@@ -1,6 +1,25 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import axios from "axios";
 import Student from "../pages/Student";
+
+// Add a request interceptor to include the session in headers/query for all requests
+axios.interceptors.request.use(
+  (config) => {
+    const selectedSession = localStorage.getItem("selectedSession");
+    if (selectedSession) {
+      // Add as header
+      config.headers["x-session"] = selectedSession;
+      // Also add as query param for robustness
+      config.params = {
+        ...config.params,
+        session: selectedSession,
+      };
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
 
 export const uploadPhoto = async (file: File) => {
   try {
@@ -518,7 +537,29 @@ export const fetchDashboardClassStats = async () => {
   const response = await axios.get(`http://localhost:5000/api/dashboard/class-stats`);
   return response.data;
 };
-export const fetchDashboardStudents = async () => {
+
+export const fetchDashboardDetailedStats = async () => {
+  const response = await axios.get(`http://localhost:5000/api/dashboard/detailed-stats`);
+  return response.data;
+};
+
+// Attendance summaries (daily/weekly) with optional class, date, and subject filters
+export const fetchAttendanceSummary = async (
+  standard: string | undefined,
+  period: "daily" | "weekly",
+  date?: string,
+  subjectId?: string | number
+) => {
+  const params: any = { period };
+  if (standard) params.standard = standard;
+  if (date) params.date = date;
+  if (subjectId) params.subjectId = subjectId;
+
+  const response = await axios.get(`http://localhost:5000/api/dashboard/attendance`, {
+    params,
+  });
+  return response.data;
+};export const fetchDashboardStudents = async () => {
   try {
     const response = await axios.get("http://localhost:5000/dashboard/students");
     return response.data;

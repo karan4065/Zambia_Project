@@ -35,6 +35,44 @@ const App: React.FC = () => {
   const [isNavbarOpen, setIsNavbarOpen] = useState(true);
   const InstitueName = useRecoilValue(handleInstitutionName);
   const InstitueLogo = useRecoilValue(handleInstitutionLogo);
+
+  const [sessions, setSessions] = useState<{ id: number; year: string }[]>([]);
+  const [selectedSession, setSelectedSession] = useState<string>(localStorage.getItem("selectedSession") || "");
+
+  useEffect(() => {
+    const fetchSessions = async () => {
+      try {
+        const response = await axios.get("http://localhost:5000/getSessions");
+        const sessionData = response.data;
+        setSessions(sessionData);
+
+        // If no session is selected in localStorage, pick the latest one
+        if (!localStorage.getItem("selectedSession") && sessionData.length > 0) {
+          const latest = sessionData[0].year;
+          localStorage.setItem("selectedSession", latest);
+          setSelectedSession(latest);
+          // Set on backend
+          await axios.get(`http://localhost:5000/setSession?year=${latest}`);
+          window.location.reload();
+        }
+      } catch (err) {
+        console.error("Error fetching sessions:", err);
+      }
+    };
+    fetchSessions();
+  }, []);
+
+  const handleSessionChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newSession = e.target.value;
+    localStorage.setItem("selectedSession", newSession);
+    setSelectedSession(newSession);
+    try {
+      await axios.get(`http://localhost:5000/setSession?year=${newSession}`);
+      window.location.reload();
+    } catch (err) {
+      console.error("Error setting session:", err);
+    }
+  };
   useEffect(() => {
     const token = localStorage.getItem("token");
     const userRole = localStorage.getItem("userRole");
@@ -212,7 +250,33 @@ const App: React.FC = () => {
             {InstitueName || "School Name"}
           </h2>
         </div>
-        <div>ERP - Pallotii</div>
+        <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <label style={{ fontSize: "14px", fontWeight: "500" }}>Session:</label>
+            <select
+              value={selectedSession}
+              onChange={handleSessionChange}
+              style={{
+                backgroundColor: "rgba(255, 255, 255, 0.1)",
+                color: "white",
+                border: "1px solid rgba(255, 255, 255, 0.3)",
+                borderRadius: "4px",
+                padding: "4px 8px",
+                fontSize: "14px",
+                outline: "none",
+                cursor: "pointer",
+              }}
+            >
+              <option value="" disabled style={{ color: "black" }}>Select Session</option>
+              {sessions.map((s) => (
+                <option key={s.id} value={s.year} style={{ color: "black" }}>
+                  {s.year}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>ERP - Pallotii</div>
+        </div>
       </div>
 
       <div className="App">

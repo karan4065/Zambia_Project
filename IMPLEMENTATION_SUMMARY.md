@@ -54,6 +54,19 @@ Successfully implemented a comprehensive Dashboard feature with three distinct s
 
 ## 📁 File Structure & Changes
 
+### ✅ Feature 4: Attendance Dashboard Charts
+```
+✓ Added daily and weekly attendance summary to Admin dashboard
+✓ Daily view shows pie chart with present vs absent percentage
+✓ Weekly view shows bar chart for Monday–Saturday percentages
+✓ Filter by class (standards) and period (daily/weekly)
+✓ Backend endpoint `/api/dashboard/attendance` returns aggregated
+   data per class and period
+✓ UI controls added to `DashboardSummary.tsx`, new API
+   `fetchAttendanceSummary` in `api.ts`
+```
+
+
 ### Frontend Files
 
 #### 1. `/frontend/src/pages/Report.tsx` (Complete Rewrite)

@@ -54,7 +54,11 @@ app.post('/session', async (req, res) => {
 
 app.get('/getSessions', async (req, res) => {
     try {
-        const fetchSession = await prisma.session.findMany();
+        const fetchSession = await prisma.session.findMany({
+            orderBy: {
+                year: 'desc'
+            }
+        });
         return res.status(200).json(fetchSession)
     } catch (error) {
         console.error("Error fetching session: ", error.message);
@@ -83,14 +87,31 @@ app.get('/setSession', (req, res) => {
 
 
 // Middleware to attach the session to the request object
-app.use((req, res, next) => {
-    const session = sessionManager.getSession();
-    if (session) {
-        req.session = session; // Attach session data to the request object
-    } else {
-        req.session = '2025-2026'; // Default session if not set
+app.use(async (req, res, next) => {
+    try {
+        // 1. Check query parameter or header (highest priority)
+        let session = req.query.session || req.headers['x-session'];
+        
+        // 2. If not in query/header, check persisted session
+        if (!session) {
+            session = sessionManager.getSession();
+        }
+
+        // 3. Fallback to latest session from database if still not found
+        if (!session) {
+            const latestSession = await prisma.session.findFirst({
+                orderBy: { year: 'desc' }
+            });
+            session = latestSession ? latestSession.year : '2025-2026';
+        }
+
+        req.session = session;
+        next();
+    } catch (error) {
+        console.error("Session middleware error:", error);
+        req.session = '2025-2026';
+        next();
     }
-    next();
 });
 
 // Use routers with appropriate paths AFTER session is set up
