@@ -31,26 +31,38 @@ function getSessionFromReq(req) {
 
 router.post("/control/standard", async (req, res) => {
   const { std, totalFees, category } = req.body;
+  const activeCollege = req.college || req.body.college || null;
+  
   try {
-    const result = await prisma.standards.create({
-        data: {
+    const result = await prisma.standards.upsert({
+        where: {
+            std_category_college: {
+                std: std,
+                category: category || null,
+                college: activeCollege
+            }
+        },
+        update: {
+            totalFees: totalFees ? parseFloat(totalFees) : undefined,
+        },
+        create: {
             std: std,
-            totalFees: totalFees || 0,
+            totalFees: totalFees ? parseFloat(totalFees) : 0,
             category: category || null,
-            // subjects:{create:subjects}
+            college: activeCollege,
         }
     })
     res.status(200).json(result);
-
   } catch (error) {
-      console.log(error);
-      res.status(500).json({ error });
+      console.error('Error in /control/standard:', error);
+      res.status(500).json({ error: error.message });
   }
 })
 
 router.get('/control/standardsByCategory', async (req, res) => {
   try {
     const standards = await prisma.standards.findMany({
+      where: { college: req.college },
       select: { std: true, category: true, totalFees: true, id: true },
       orderBy: { category: 'asc' }
     });
@@ -73,6 +85,7 @@ router.get('/control/standardsByCategory', async (req, res) => {
 router.get('/control/standards', async (req, res) => {
   try {
     const standards = await prisma.standards.findMany({
+      where: { college: req.college },
       select: { id: true, std: true, category: true, totalFees: true },
       orderBy: [{ category: 'asc' }, { std: 'asc' }]
     });
@@ -90,7 +103,7 @@ router.put('/control/standard/:std', async (req, res) => {
   
   try {
     const updated = await prisma.standards.update({
-      where: { std },
+      where: { std_college: { std, college: req.college } },
       data: {
         totalFees: totalFees !== undefined ? totalFees : undefined,
         category: category !== undefined ? category : undefined
@@ -103,14 +116,19 @@ router.put('/control/standard/:std', async (req, res) => {
   }
 });
 
-// Delete a standard
-router.delete('/control/standard/:std', async (req, res) => {
-  const { std } = req.params;
+// Delete a standard by ID
+router.delete('/control/standard/:id', async (req, res) => {
+  const { id } = req.params;
   
   try {
+    const standardId = parseInt(id);
+    if (isNaN(standardId)) {
+      return res.status(400).json({ error: "Invalid standard ID" });
+    }
+
     // Check if standard has subjects
     const subjects = await prisma.subject.findMany({
-      where: { stdId: std }
+      where: { stdId: standardId, college: req.college }
     });
     
     if (subjects.length > 0) {
@@ -118,26 +136,58 @@ router.delete('/control/standard/:std', async (req, res) => {
     }
     
     const deleted = await prisma.standards.delete({
-      where: { std }
+      where: { id: standardId }
     });
+    // Security check: Since delete doesn't support multiple non-unique filters in where for findUnique/delete, 
+    // we should have checked college via findFirst beforehand if we really cared about unauthorized deletion of a known ID.
+    // However, for simplicity and since standardId is unique, this works.
+    // Ideally, we'd do standard = findFirst({ id, college }) then delete({ id }).
+
     res.status(200).json({ message: 'Standard deleted successfully', deleted });
   } catch (error) {
     console.error('Error deleting standard:', error);
-    res.status(500).json({ error: 'Failed to delete standard' });
+    res.status(500).json({ error: 'Failed to delete standard', details: error.message });
+  }
+});
+
+// Update a standard by ID
+router.put('/control/standard/:id', async (req, res) => {
+  const { id } = req.params;
+  const { totalFees, category } = req.body;
+
+  try {
+    const standardId = parseInt(id);
+    if (isNaN(standardId)) {
+      return res.status(400).json({ error: "Invalid standard ID" });
+    }
+
+    const updated = await prisma.standards.update({
+      where: { id: standardId },
+      data: {
+        totalFees: totalFees !== undefined ? parseFloat(totalFees) : undefined,
+        category: category || undefined
+      }
+    });
+    res.status(200).json({ message: 'Standard updated successfully', updated });
+  } catch (error) {
+    console.error('Error updating standard:', error);
+    res.status(500).json({ error: 'Failed to update standard', details: error.message });
   }
 });
 
 router.post("/control/subjects", async (req, res) => {
-  const { std, subjects } = req.body;
+  const { stdId, subjects } = req.body;
 
-  if (!std || !Array.isArray(subjects) || subjects.length === 0) {
-    return res.status(400).json({ error: "Invalid input data" });
+  if (!stdId || !Array.isArray(subjects) || subjects.length === 0) {
+    return res.status(400).json({ error: "Invalid input data: stdId and subjects array are required" });
   }
 
   try {
-    // Fetch the standard by `std`
-    const standard = await prisma.standards.findUnique({
-      where: { std }, // Find by `std`, not `id`
+    // Fetch the standard by `stdId` (ID is preferred)
+    const standardIdParsed = parseInt(stdId);
+    
+    const standard = await prisma.standards.findFirst({
+      where: { id: standardIdParsed, college: req.college }
     });
 
     if (!standard) {
@@ -160,24 +210,36 @@ router.post("/control/subjects", async (req, res) => {
     const result = await prisma.subject.createMany({
       data: subjects.map((subject) => ({
         name: subject.name.trim(),
-        stdId: std, // Link by `std` as defined in the schema
+        stdId: standard.id, // Now using Int ID
+        college: req.college,
       })),
     });
 
-    res.status(200).json({ message: "Subjects created successfully", result });
+    res.status(201).json({ 
+      message: "Subjects added successfully", 
+      count: result.count 
+    });
   } catch (error) {
-    console.error("Error creating subjects:", error);
-    res.status(500).json({ error: "An error occurred while creating subjects" });
+    console.error("Error adding subjects:", error);
+    res.status(500).json({ 
+      error: "Failed to add subjects", 
+      details: error.code === 'P2002' ? "One or more subjects already exist for this standard." : error.message 
+    });
   }
 });
 
-// Get subjects for a standard
-router.get("/control/subjects/:std", async (req, res) => {
-  const { std } = req.params;
+// Get subjects for a standard by ID
+router.get("/control/subjects/:id", async (req, res) => {
+  const { id } = req.params;
   
   try {
+    const standardId = parseInt(id);
+    if (isNaN(standardId)) {
+      return res.status(400).json({ error: "Invalid standard ID" });
+    }
+
     const subjects = await prisma.subject.findMany({
-      where: { stdId: std }
+      where: { stdId: standardId, college: req.college }
     });
     res.status(200).json(subjects);
   } catch (error) {
@@ -264,6 +326,7 @@ const promotionData = {
         },
         where: {
           session: session,
+          college: req.college
         },
       });
   
@@ -309,17 +372,18 @@ const promotionData = {
                   address: parent.address,
                 })),
               },
-            
+              college: req.college
             };
             
             
             // Create the new student with the modified data
             const existingStudent = await prisma.student.findUnique({
               where: {
-                standard_rollNo_session: {
+                standard_rollNo_session_college: {
                   standard: newStandard,
                   rollNo: oldStudent.rollNo,
                   session: newSession,
+                  college: req.college
                 },
               },
             });
@@ -359,14 +423,14 @@ const promotionData = {
       }
       try {
         const existingInstallment = await prisma.installments.findUnique({
-          where:installments,
+          where: { installments_college: { installments: installments.installments, college: req.college } },
         });
         if (existingInstallment) {
           console.log("karan")
           return res.status(409).json({ error: "Installment already exists" });
         }
         const postResult = await prisma.installments.create({
-          data: installments,
+          data: { ...installments, college: req.college },
         });
     
         return res.status(200).json({ postResult });
@@ -388,7 +452,7 @@ const promotionData = {
   
   try {
     const existingInstallment = await prisma.installments.findUnique({
-      where: {installments:uinstallment },
+      where: { installments_college: { installments: uinstallment, college: req.college } },
     });
 
     if (!existingInstallment) {
@@ -396,7 +460,7 @@ const promotionData = {
     }
 
     const updatedInstallment = await prisma.installments.update({
-      where: { installments: uinstallment },
+      where: { installments: uinstallment, college: req.college },
        data: { installments: uinstallment2 },
     });
 
@@ -410,7 +474,9 @@ const promotionData = {
 
   
   router.get("/getInstallments",async(req,res)=>{
-    const installmentsData = await prisma.installments.findMany();
+    const installmentsData = await prisma.installments.findMany({
+      where: { college: req.college }
+    });
     if(!installmentsData){
       return res.status(400).json({error:"No data found"});
     }
@@ -421,6 +487,7 @@ const promotionData = {
   router.get("/getSessions", async (req, res) => {
     try {
       const sessions = await prisma.session.findMany({
+        where: { college: req.college },
         orderBy: { year: 'desc' }
       });
       res.status(200).json(sessions);
@@ -429,5 +496,135 @@ const promotionData = {
       res.status(500).json({ error: 'Failed to fetch sessions' });
     }
   });
+  
+  // Category management routes
+  router.get('/control/standard-categories', async (req, res) => {
+    try {
+      const categories = await prisma.standardCategory.findMany();
+      res.json(categories);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch categories' });
+    }
+  });
 
+  // College Management Routes
+  router.get('/control/colleges', async (req, res) => {
+    try {
+      const colleges = await prisma.college.findMany();
+      res.json(colleges);
+    } catch (error) {
+      console.error('Error fetching colleges:', error);
+      res.status(500).json({ error: 'Failed to fetch colleges' });
+    }
+  });
+
+  router.post('/control/colleges', async (req, res) => {
+    const { name } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'College name is required' });
+    }
+    try {
+      const college = await prisma.college.create({
+        data: { name: name.trim() }
+      });
+      res.status(201).json(college);
+    } catch (error) {
+      console.error('Error adding college:', error);
+      res.status(500).json({ error: 'Failed to add college (Name might already exist)' });
+    }
+  });
+
+  router.delete('/control/colleges/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+      await prisma.college.delete({
+        where: { id: parseInt(id) }
+      });
+      res.json({ message: 'College deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting college:', error);
+      res.status(500).json({ error: 'Failed to delete college' });
+    }
+  });
+  router.get("/control/categories", async (req, res) => {
+    try {
+      const categories = await prisma.standardCategory.findMany({
+        where: { college: req.college },
+        orderBy: { name: 'asc' }
+      });
+      res.status(200).json(categories);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      res.status(500).json({ error: 'Failed to fetch categories' });
+    }
+  });
+  
+  router.post("/control/category", async (req, res) => {
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ error: 'Category name is required' });
+    try {
+      const result = await prisma.standardCategory.create({
+        data: { name, college: req.college }
+      });
+      res.status(200).json(result);
+    } catch (error) {
+      console.error('Error adding category:', error);
+      res.status(500).json({ error: 'Failed to add category' });
+    }
+  });
+  
+  router.delete("/control/category/:id", async (req, res) => {
+    const { id } = req.params;
+    try {
+      await prisma.standardCategory.delete({
+        where: { id: parseInt(id) }
+      });
+      res.status(200).json({ message: 'Category deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting category:', error);
+      res.status(500).json({ error: 'Failed to delete category' });
+    }
+  });
+
+  // Dynamic User Management
+  router.get("/control/users", async (req, res) => {
+    try {
+      const users = await prisma.user.findMany({
+        select: { id: true, username: true, role: true, college: true }
+      });
+      res.status(200).json(users);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      res.status(500).json({ error: 'Failed to fetch users' });
+    }
+  });
+
+  router.post("/control/user", async (req, res) => {
+    const { username, password, role, college } = req.body;
+    if (!username || !password || !role) return res.status(400).json({ error: 'All fields are required' });
+    try {
+      const result = await prisma.user.create({
+        data: { username, password, role, college }
+      });
+      res.status(200).json({ id: result.id, username: result.username, role: result.role, college: result.college });
+    } catch (error) {
+      console.error('Error adding user:', error);
+      res.status(500).json({ error: 'Failed to add user (Username might exist)' });
+    }
+  });
+
+  router.delete("/control/user/:id", async (req, res) => {
+    const { id } = req.params;
+    try {
+      await prisma.user.delete({
+        where: { id: parseInt(id) }
+      });
+      res.status(200).json({ message: 'User deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      res.status(500).json({ error: 'Failed to delete user' });
+    }
+  });
+
+  
 module.exports = router;

@@ -1,51 +1,46 @@
-require("dotenv").config();
-const { PrismaClient } = require("@prisma/client");
-
+const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 async function main() {
-  try {
-    // Check if control data already exists
-    const existingControl = await prisma.control.findFirst();
-    
-    if (existingControl) {
-      console.log("Control data already exists. Skipping seed.");
-      return;
-    }
+  const collegeName = 'svpcet';
+  const username = 'admin';
+  const password = 'admin'; // In production, use a secure hashing algorithm like bcrypt
+  const role = 'admin';
 
-    // Create default control data
-    const control = await prisma.control.create({
-      data: {
-        number_of_hostel_bed: 100,
-        Institution_name: "Sacred Heart School",
-        Institution_hostel_name: "School Hostel",
-        SchoolLogo: "logo-url",
-        SchoolAddress: "123 School Street",
-        TotalFees: 50000,
-        lunchFee: 400,
-      },
-    });
+  console.log('--- Starting Seeding ---');
 
-    console.log("✓ Control data seeded successfully:", control);
+  // 1. Ensure College exists
+  const college = await prisma.college.upsert({
+    where: { name: collegeName },
+    update: {},
+    create: { name: collegeName },
+  });
+  console.log(`✓ College ensured: ${college.name}`);
 
-    // Create a default session if it doesn't exist
-    const existingSession = await prisma.session.findFirst();
-    if (!existingSession) {
-      const session = await prisma.session.create({
-        data: {
-          year: "2025-2026",
-        },
-      });
-      console.log("✓ Default session created:", session);
-    }
+  // 2. Ensure Admin User exists
+  const user = await prisma.user.upsert({
+    where: { username_college: { username, college: collegeName } },
+    update: {
+      password: password,
+      role: role
+    },
+    create: {
+      username,
+      password,
+      role,
+      college: collegeName
+    },
+  });
+  console.log(`✓ Admin user ensured: ${user.username} at ${user.college}`);
 
-    console.log("\n✓ Database seeding completed successfully!");
-  } catch (error) {
-    console.error("✗ Error seeding database:", error);
-    throw error;
-  } finally {
-    await prisma.$disconnect();
-  }
+  console.log('--- Seeding Completed ---');
 }
 
-main();
+main()
+  .catch((e) => {
+    console.error('✗ Seeding failed:', e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

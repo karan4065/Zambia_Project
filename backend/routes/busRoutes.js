@@ -8,6 +8,7 @@ const prisma = new PrismaClient();
 router.get("/busStations", async (req, res) => {
   try {
     const stations = await prisma.busStation.findMany({
+      where: { college: req.college },
       orderBy: { createdAt: "desc" },
       include: {
         _count: {
@@ -63,6 +64,7 @@ router.post("/busStations", async (req, res) => {
         stationName,
         price: parseFloat(price),
         description,
+        college: req.college
       },
     });
 

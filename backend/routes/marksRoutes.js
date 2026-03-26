@@ -14,7 +14,7 @@ router.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
   router.get("/downloadMarks", async (req, res) => {
     try {
-      const feeRecord = await prisma.marks.findMany();
+      const feeRecord = await prisma.marks.findMany({ where: { college: req.college } });
   
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet("Marks");
@@ -90,10 +90,11 @@ router.use('/uploads', express.static(path.join(__dirname, 'uploads')));
       // Check for duplicate entry
       const existingMark = await prisma.marks.findUnique({
         where: {
-          studentId_subjectId_examinationType: {
+          studentId_subjectId_examinationType_college: {
             studentId: parseInt(studentId),
             subjectId: parseInt(subjectId),
-            examinationType: examinationType
+            examinationType: examinationType,
+            college: req.college
           }
         }
       });
@@ -112,6 +113,7 @@ router.use('/uploads', express.static(path.join(__dirname, 'uploads')));
           obtainedMarks: marks,
           totalMarks: total,
           percentage: parseFloat(calculatedPercentage),
+          college: req.college
         },
       });
   
@@ -127,9 +129,20 @@ router.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
   router.get('/api/marks/:studentId', async (req, res) => {
     const { studentId } = req.params;
+    const { examinationType } = req.query;
     try {
+      const where = { studentId: parseInt(studentId) };
+      if (examinationType) {
+        where.examinationType = examinationType;
+      } else {
+        // Default to 'Annual' for backward compatibility if needed, 
+        // or just return all. The user mentioned they want to see what they add.
+        // Let's default to 'Annual' for now but the frontend will pass the param.
+        where.examinationType = 'Annual';
+      }
+      
       const marks = await prisma.marks.findMany({
-        where: { studentId: parseInt(studentId), examinationType: 'Annual' }
+        where: { ...where, college: req.college }
       });
       res.json(marks);
     } catch (error) {
@@ -143,7 +156,7 @@ router.use('/uploads', express.static(path.join(__dirname, 'uploads')));
     const { standard } = req.params;
     try {
       const subjects = await prisma.subject.findMany({
-        where: { stdId: standard },
+        where: { std: { std: standard, college: req.college }, college: req.college },
         select: {
           id: true,
           name: true,
@@ -164,9 +177,10 @@ router.use('/uploads', express.static(path.join(__dirname, 'uploads')));
         where: {
           studentId: parseInt(studentId),
           subject: {
-            stdId: standard
+            std: { std: standard, college: req.college }
           },
-          examinationType: examinationType
+          examinationType: examinationType,
+          college: req.college
         },
         include: {
           subject: true
@@ -214,10 +228,11 @@ router.use('/uploads', express.static(path.join(__dirname, 'uploads')));
           // Check for duplicate
           const existing = await prisma.marks.findUnique({
             where: {
-              studentId_subjectId_examinationType: {
+              studentId_subjectId_examinationType_college: {
                 studentId: parseInt(studentId),
                 subjectId: parseInt(subjectId),
-                examinationType: examinationType
+                examinationType: examinationType,
+                college: req.college
               }
             }
           });
@@ -244,6 +259,7 @@ router.use('/uploads', express.static(path.join(__dirname, 'uploads')));
                 obtainedMarks: obtainedVal,
                 totalMarks: totalVal,
                 percentage: parseFloat(calculatedPercentage),
+                college: req.college
               }
             });
             results.push(created);

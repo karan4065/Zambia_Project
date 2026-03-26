@@ -18,7 +18,10 @@ function mapItemWithGender(item) {
 // Get all inventory items
 router.get("/inventory", async (req, res) => {
 	try {
-		const items = await prisma.inventory.findMany({ orderBy: { createdAt: "desc" } });
+		const items = await prisma.inventory.findMany({ 
+			where: { college: req.college },
+			orderBy: { createdAt: "desc" } 
+		});
 		res.status(200).json(items.map(mapItemWithGender));
 	} catch (error) {
 		res.status(500).json({ error: "Failed to fetch inventory", details: error.message });
@@ -43,6 +46,7 @@ router.post("/inventory", async (req, res) => {
 				price: parseFloat(price),
 				quantity: quantity ? parseInt(quantity) : null,
 				description,
+				college: req.college
 			},
 		});
 
@@ -57,9 +61,10 @@ router.put("/inventory/:id", async (req, res) => {
 	try {
 		const { id } = req.params;
 		const { itemName, category, gender, size, price, quantity, description } = req.body;
+		const inventoryId = parseInt(id);
 
 		const item = await prisma.inventory.update({
-			where: { id: parseInt(id) },
+			where: { id: inventoryId },
 			data: {
 				itemName,
 				category,
@@ -86,7 +91,7 @@ router.delete("/inventory/:id", async (req, res) => {
 		const { id } = req.params;
 		const inventoryId = parseInt(id);
 
-		// First delete all related StudentInventory records
+		// First delete all related StudentInventory records (optionally check college here too if studentInventory had it)
 		await prisma.studentInventory.deleteMany({ where: { inventoryId } });
 
 		// Then delete the inventory item
@@ -104,7 +109,7 @@ router.delete("/inventory/:id", async (req, res) => {
 router.get("/inventory/category/:category", async (req, res) => {
 	try {
 		const { category } = req.params;
-		const items = await prisma.inventory.findMany({ where: { category } });
+		const items = await prisma.inventory.findMany({ where: { category, college: req.college } });
 		res.status(200).json(items.map(mapItemWithGender));
 	} catch (error) {
 		res.status(500).json({ error: "Failed to fetch items", details: error.message });
@@ -114,13 +119,13 @@ router.get("/inventory/category/:category", async (req, res) => {
 // Get inventory distribution by gender (counts and total quantities)
 router.get("/inventory/distribution", async (req, res) => {
 	try {
-		const boysCount = await prisma.inventory.count({ where: { gender: { equals: 'boys' } } });
-		const girlsCount = await prisma.inventory.count({ where: { gender: { equals: 'girls' } } });
-		const allCount = await prisma.inventory.count({ where: { OR: [ { gender: null }, { gender: { equals: 'all' } } ] } });
+		const boysCount = await prisma.inventory.count({ where: { gender: { equals: 'boys' }, college: req.college } });
+		const girlsCount = await prisma.inventory.count({ where: { gender: { equals: 'girls' }, college: req.college } });
+		const allCount = await prisma.inventory.count({ where: { OR: [ { gender: null }, { gender: { equals: 'all' } } ], college: req.college } });
 
-		const boysQuantity = await prisma.inventory.aggregate({ where: { gender: { equals: 'boys' } }, _sum: { quantity: true } });
-		const girlsQuantity = await prisma.inventory.aggregate({ where: { gender: { equals: 'girls' } }, _sum: { quantity: true } });
-		const allQuantity = await prisma.inventory.aggregate({ where: { OR: [ { gender: null }, { gender: { equals: 'all' } } ] }, _sum: { quantity: true } });
+		const boysQuantity = await prisma.inventory.aggregate({ where: { gender: { equals: 'boys' }, college: req.college }, _sum: { quantity: true } });
+		const girlsQuantity = await prisma.inventory.aggregate({ where: { gender: { equals: 'girls' }, college: req.college }, _sum: { quantity: true } });
+		const allQuantity = await prisma.inventory.aggregate({ where: { OR: [ { gender: null }, { gender: { equals: 'all' } } ], college: req.college }, _sum: { quantity: true } });
 
 		res.status(200).json({
 			items: {
@@ -148,7 +153,7 @@ router.post("/student-inventory", async (req, res) => {
 			return res.status(400).json({ message: "Student ID, Inventory ID, and quantity are required" });
 		}
 
-		const inventory = await prisma.inventory.findUnique({ where: { id: parseInt(inventoryId) } });
+		const inventory = await prisma.inventory.findFirst({ where: { id: parseInt(inventoryId), college: req.college } });
 
 		if (!inventory) {
 			return res.status(404).json({ message: "Inventory item not found" });
@@ -191,7 +196,13 @@ router.post("/student-inventory", async (req, res) => {
 router.get("/student-inventory/:studentId", async (req, res) => {
 	try {
 		const { studentId } = req.params;
-		const studentInventory = await prisma.studentInventory.findMany({ where: { studentId: parseInt(studentId) }, include: { inventory: true } });
+		const studentInventory = await prisma.studentInventory.findMany({ 
+			where: { 
+				studentId: parseInt(studentId),
+				inventory: { college: req.college }
+			}, 
+			include: { inventory: true } 
+		});
 		res.status(200).json(studentInventory.map((si) => ({ ...si, inventory: mapItemWithGender(si.inventory) })));
 	} catch (error) {
 		res.status(500).json({ error: "Failed to fetch student inventory", details: error.message });

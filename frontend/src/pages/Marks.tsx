@@ -306,9 +306,10 @@ const Marks: React.FC = () => {
                 style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
               >
                 <option value="">Select Examination Type</option>
-                <option value="First Semester">First exam</option>
-                <option value="Second Semester">Second exam</option>
-                <option value="Final Semester">Final exam</option>
+                <option value="Annual">Annual</option>
+                <option value="First Semester">First Semester</option>
+                <option value="Second Semester">Second Semester</option>
+                <option value="Final Semester">Final Semester</option>
               </select>
             </div>
           </div>

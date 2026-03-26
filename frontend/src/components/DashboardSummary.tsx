@@ -1,12 +1,13 @@
 import { useEffect, useState, useMemo } from "react";
+import { useRecoilValue } from "recoil";
+import { standardList } from "../store/store";
 import {
   fetchDashboardOverview,
-  fetchDashboardPerformance,
   fetchDashboardClassStats,
   fetchDashboardDetailedStats,
-  fetchStandards,
   fetchAttendanceSummary,
   fetchSubjects,
+  fetchResultStatus,
 } from "../apis/api";
 import {
   PieChart,
@@ -35,13 +36,14 @@ const COLORS = ["#00C49F", "#FF8042", "#0088FE", "#FFBB28"];
 
 const DashboardSummary = () => {
   const [overview, setOverview] = useState<any>(null);
-  const [performance, setPerformance] = useState<any>(null);
   const [classStats, setClassStats] = useState<any[]>([]);
   const [detailedStats, setDetailedStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
+  // standards from global store
+  const standards = useRecoilValue(standardList);
+
   // attendance related
-  const [standards, setStandards] = useState<string[]>([]);
   const [selectedStandard, setSelectedStandard] = useState<string>("");
   const [subjects, setSubjects] = useState<any[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<string>("");
@@ -51,17 +53,20 @@ const DashboardSummary = () => {
   );
   const [attendanceData, setAttendanceData] = useState<any>(null);
 
+  // Result Status related
+  const [selectedResultStandard, setSelectedResultStandard] = useState<string>("");
+  const [resultStatus, setResultStatus] = useState<any>(null);
+  const [loadingResult, setLoadingResult] = useState(false);
+
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [overviewData, performanceData, classStatsData, detailedData] = await Promise.all([
+        const [overviewData, classStatsData, detailedData] = await Promise.all([
           fetchDashboardOverview(),
-          fetchDashboardPerformance(),
           fetchDashboardClassStats(),
           fetchDashboardDetailedStats(),
         ]);
         setOverview(overviewData);
-        setPerformance(performanceData);
         setClassStats(classStatsData);
         setDetailedStats(detailedData);
       } catch (err) {
@@ -71,18 +76,6 @@ const DashboardSummary = () => {
       }
     };
     loadData();
-
-    // load standards for attendance filter
-    const loadStandards = async () => {
-      try {
-        const resp: any = await fetchStandards();
-        const list: string[] = resp.data?.standards || resp.standards || [];
-        setStandards(list);
-      } catch (err) {
-        console.error("Failed to load standards", err);
-      }
-    };
-    loadStandards();
   }, []);
 
   // fetch subjects whenever standard changes
@@ -176,13 +169,27 @@ const DashboardSummary = () => {
     loadAttendance();
   }, [selectedStandard, period, attendanceDate, selectedSubject]);
 
+  // fetch result status whenever its standard changes
+  useEffect(() => {
+    const loadResultStatus = async () => {
+      if (!selectedResultStandard) {
+        setResultStatus(null);
+        return;
+      }
+      setLoadingResult(true);
+      try {
+        const data = await fetchResultStatus(selectedResultStandard);
+        setResultStatus(data);
+      } catch (err) {
+        console.error("Failed to load result status", err);
+      } finally {
+        setLoadingResult(false);
+      }
+    };
+    loadResultStatus();
+  }, [selectedResultStandard]);
+
   // compute data that depend on loaded values but not conditional
-  const pieData = performance
-    ? [
-        { name: "Passed", value: performance.passedStudents },
-        { name: "Failed", value: performance.failedStudents },
-      ]
-    : [];
 
   // number of students in selected class (or total if none selected)
   const totalStudentsCount = useMemo(() => {
@@ -240,41 +247,71 @@ const DashboardSummary = () => {
 
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-        {/* Student Performance */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <h3 className="text-lg font-semibold mb-4 text-gray-700">
-            Student Performance (Pass vs Fail)
-          </h3>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={pieData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, percent = 0 }) =>
-                    `${name}: ${(percent * 100).toFixed(0)}%`
-                  }
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {pieData.map((_, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
+        {/* Result Status (Final Semester) */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-6">
+          <div className="flex justify-between items-center border-b pb-2">
+            <h3 className="text-lg font-semibold text-gray-700">
+              Result Status (Final Semester)
+            </h3>
+            <select
+              value={selectedResultStandard}
+              onChange={(e) => setSelectedResultStandard(e.target.value)}
+              className="border rounded px-2 py-1 text-sm focus:ring-2 focus:ring-blue-200"
+            >
+              <option value="">Select Class</option>
+              {standards.map((std) => (
+                <option key={std} value={std}>
+                  {std}
+                </option>
+              ))}
+            </select>
           </div>
-          <div className="mt-4 text-center">
-            <span className="text-sm text-gray-500">Passing Percentage: </span>
-            <span className="font-bold text-emerald-600 text-lg">
-              {performance?.passingPercentage || 0}%
-            </span>
-          </div>
+
+          {loadingResult ? (
+            <div className="text-center py-10">Loading results...</div>
+          ) : resultStatus ? (
+            <div className="space-y-4">
+              <div className="h-48">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={[
+                        { name: "Passed", value: resultStatus.passedStudents },
+                        { name: "Failed", value: resultStatus.failedStudents },
+                      ]}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={60}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {[resultStatus.passedStudents, resultStatus.failedStudents].map((_, index) => (
+                        <Cell key={`cell-res-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="flex justify-between p-2 bg-gray-50 rounded">
+                  <span className="text-gray-500">Passed:</span>
+                  <span className="font-bold text-green-600">{resultStatus.passPercentage}%</span>
+                </div>
+                <div className="flex justify-between p-2 bg-gray-50 rounded">
+                  <span className="text-gray-500">Failed:</span>
+                  <span className="font-bold text-red-600">{resultStatus.failPercentage}%</span>
+                </div>
+              </div>
+              <div className="text-center text-xs font-medium text-gray-500">
+                Total Students: {resultStatus.totalStudents}
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-10 text-gray-400 text-sm">
+              Select a class to view result stats.
+            </div>
+          )}
         </div>
 
         {/* Students Per Class */}
@@ -496,6 +533,8 @@ const DashboardSummary = () => {
         )}
       </div>
     </div>
+
+      {/* Removed old Result Status block - moved to top */}
   </div>
   );
 };

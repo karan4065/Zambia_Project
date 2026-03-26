@@ -32,6 +32,7 @@ model Student {
   motherTongue          String?
   status                StudentStatus      @default(None)
   session               String
+  college               String
   attendanceRecords     Attendance[]
   fees                  Fee[]
   marks                 Marks[]
@@ -39,7 +40,7 @@ model Student {
   busStation            BusStation?        @relation(fields: [busStationId], references: [id])
   studentInventory      StudentInventory[]
 
-  @@unique([standard, rollNo, session])
+  @@unique([standard, rollNo, session, college])
 }
 
 model Parent {
@@ -62,6 +63,7 @@ model Fee {
   amountDate    DateTime @default(now()) @db.Date
   admissionDate DateTime @default(now()) @db.Date
   studentId     Int
+  college       String
   student       Student  @relation(fields: [studentId], references: [id])
 }
 
@@ -76,6 +78,7 @@ model Attendance {
   standard    String
   subjectName String?
   session     String
+  college     String
   student     Student  @relation(fields: [studentId], references: [id])
   subject     Subject? @relation(fields: [subjectId], references: [id])
 }
@@ -89,10 +92,11 @@ model Marks {
   obtainedMarks   Float
   totalMarks      Float
   percentage      Float
+  college         String
   student         Student @relation(fields: [studentId], references: [id])
   subject         Subject @relation(fields: [subjectId], references: [id])
 
-  @@unique([studentId, subjectId, examinationType])
+  @@unique([studentId, subjectId, examinationType, college])
 }
 
 model Hostel {
@@ -101,31 +105,48 @@ model Hostel {
   rollNo     Int
   standard   String
   gender     String
-  bed_number Int    @unique
+  bed_number Int
+  college    String
 
-  @@unique([rollNo, standard])
+  @@unique([rollNo, standard, college])
+  @@unique([bed_number, college])
 }
 
 model Subject {
   id                Int          @id @default(autoincrement())
   name              String
-  stdId             String
+  stdId             Int
+  college           String
   attendanceRecords Attendance[]
   marks             Marks[]
-  std               Standards    @relation(fields: [stdId], references: [std])
+  std               Standards    @relation(fields: [stdId], references: [id])
+
+  @@unique([name, stdId, college])
 }
 
 model Standards {
   id        Int       @unique @default(autoincrement())
-  std       String    @unique
+  std       String
   category  String?
   totalFees Float?
+  college   String
   subjects  Subject[]
+
+  @@unique([std, category, college])
+}
+
+model StandardCategory {
+  id      Int    @id @default(autoincrement())
+  name    String
+  college String
+
+  @@unique([name, college])
 }
 
 model Control {
   id                      Int      @id @default(autoincrement())
-  sessionId               Int?     @unique
+  sessionId               Int?
+  college                 String?
   number_of_hostel_bed    Int?
   Institution_name        String?  @default("School")
   Institution_hostel_name String?  @default("Hostel")
@@ -134,18 +155,26 @@ model Control {
   TotalFees               Int?
   lunchFee                Float?
   session                 Session? @relation(fields: [sessionId], references: [id])
+
+  @@unique([sessionId, college])
 }
 
 model Session {
   id        Int      @id @default(autoincrement())
-  year      String   @unique
+  year      String
+  college   String
   createdAt DateTime @default(now())
-  control   Control?
+  controls  Control[]
+
+  @@unique([year, college])
 }
 
 model Installments {
   id           Int    @id @default(autoincrement())
-  installments String @unique
+  installments String
+  college      String
+
+  @@unique([installments, college])
 }
 
 model Inventory {
@@ -159,6 +188,7 @@ model Inventory {
   gender           String?
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
+  college          String
   studentInventory StudentInventory[]
 }
 
@@ -177,12 +207,30 @@ model StudentInventory {
 
 model BusStation {
   id          Int       @id @default(autoincrement())
-  stationName String    @unique
+  stationName String
   price       Float
   description String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  college     String
   students    Student[]
+
+  @@unique([stationName, college])
+}
+
+model User {
+  id       Int     @id @default(autoincrement())
+  username String
+  password String
+  role     String // "admin" or "teacher"
+  college  String?
+
+  @@unique([username, college])
+}
+
+model College {
+  id   Int    @id @default(autoincrement())
+  name String @unique
 }
 
 enum Gender {

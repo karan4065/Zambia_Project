@@ -14,8 +14,10 @@ router.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Get Hostel Data
 router.get('/gethosteldata', async (req, res) => {
     try {
-      const result = await prisma.hostel.findMany();
-      const hostelRes = await prisma.control.findFirst();
+      const result = await prisma.hostel.findMany({ where: { college: req.college } });
+      const hostelRes = await prisma.control.findFirst({
+        where: { session: { year: req.session, college: req.college }, college: req.college }
+      });
       const n = hostelRes.number_of_hostel_bed ?? 0;
       const available = [];
       for (let i = 1; i <= n ; i++) {
@@ -51,6 +53,7 @@ router.get('/gethosteldata', async (req, res) => {
                 gender : gender,
                 bed_number: bed_no,
                 rollNo : parseInt(rollNo),
+                college: req.college
             },
         });
        
@@ -68,9 +71,10 @@ router.get('/gethosteldata', async (req, res) => {
     try {
         const result = await prisma.hostel.update({
             where : {
-              rollNo_standard : {
+              rollNo_standard_college : {
                 rollNo : parseInt(rollNo),
                 standard : standard,
+                college: req.college
               }
             },
             data: {
@@ -92,8 +96,11 @@ router.get('/gethosteldata', async (req, res) => {
       try{
           const result = await prisma.hostel.delete({
             where :{
-              rollNo : parseInt(rollNo),
-              bed_number : bed_no,
+              rollNo_standard_college : {
+                rollNo : parseInt(rollNo),
+                standard : req.body.standard, // Assuming standard is passed too, wait...
+                college: req.college
+              }
             }
           })
           res.status(201).json(result)
@@ -104,7 +111,7 @@ router.get('/gethosteldata', async (req, res) => {
 
   router.get("/downloadhosteldata", async (req, res) => {
     try {
-      const feeRecord = await prisma.hostel.findMany();
+      const feeRecord = await prisma.hostel.findMany({ where: { college: req.college } });
   
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet("Hostel");

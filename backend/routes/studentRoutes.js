@@ -74,8 +74,10 @@ router.post("/students", async (req, res) => {
             }
         }
 
-        // Fetch control settings to get global lunch fee if needed
-        const controlSettings = await prisma.control.findFirst();
+        // Fetch control settings to get global lunch fee if needed for this college
+        const controlSettings = await prisma.control.findFirst({
+            where: { college: req.college }
+        });
         const globalLunchFee = controlSettings ? controlSettings.lunchFee : null;
 
         const student = await prisma.student.create({
@@ -102,6 +104,7 @@ router.post("/students", async (req, res) => {
                 language,
                 motherTongue,
                 session,
+                college: req.college,
                 parents: {
                     create: parents.map((parent) => ({
                         fatherName: parent.fatherName,
@@ -119,6 +122,7 @@ router.post("/students", async (req, res) => {
                         amount: parseFloat(fee.amount),
                         amountDate: new Date(fee.amountDate),
                         admissionDate: new Date(fee.admissionDate),
+                        college: req.college
                     })),
                 },
             },
@@ -137,7 +141,9 @@ router.post("/students", async (req, res) => {
                     try {
                         const invId = parseInt(sel.inventoryId);
                         const qty = sel.quantity ? parseInt(sel.quantity) : 1;
-                        const invItem = await prisma.inventory.findUnique({ where: { id: invId } });
+                        const invItem = await prisma.inventory.findFirst({ 
+                            where: { id: invId, college: req.college } 
+                        });
                         if (!invItem) continue;
                         if (typeof invItem.quantity === 'number' && invItem.quantity < qty) {
                             console.warn(`Insufficient inventory for item ${invId}. Available: ${invItem.quantity}, requested: ${qty}`);
@@ -163,7 +169,7 @@ router.post("/students", async (req, res) => {
 
             // Then assign default uniform items (compulsory) if any remain to be assigned
             const uniformItemsRaw = await prisma.inventory.findMany({
-                where: { category: { equals: "Uniform" } },
+                where: { category: { equals: "Uniform" }, college: req.college },
             });
 
             // Normalize item gender and filter by student's gender
@@ -208,8 +214,8 @@ router.post("/students", async (req, res) => {
         }
 
         // Return student with related records and assigned inventory
-        const createdStudent = await prisma.student.findUnique({
-            where: { id: student.id },
+        const createdStudent = await prisma.student.findFirst({
+            where: { id: student.id, college: req.college },
             include: {
                 parents: true,
                 fees: true,
@@ -251,7 +257,8 @@ router.get("/getallstudent", async (req, res) => {
         const result = await prisma.student.findMany({
             where: {
                 standard: std,
-                session : session
+                session : session,
+                college: req.college
             }
         });
         res.status(200).json(JSON.parse(JSON.stringify({ result }, jsonBigIntReplacer)));
@@ -277,7 +284,8 @@ router.get("/students/rollNo", async (req, res) => {
                 where: {
                     rollNo: parseInt(rollno),
                     standard: standard,
-                    session: session
+                    session: session,
+                    college: req.college
                 },
                 include: {
                     parents: true,
@@ -289,7 +297,8 @@ router.get("/students/rollNo", async (req, res) => {
                 where: {
                     rollNo: parseInt(rollno),
                     standard: standard,
-                    session: session
+                    session: session,
+                    college: req.college
                 },
                 include: {
                     parents: true,
@@ -322,6 +331,7 @@ router.get("/students/byRollNo/:rollNo", async (req, res) => {
         const student = await prisma.student.findFirst({
             where: {
                 rollNo: parseInt(rollNo),
+                college: req.college
                 // session: session
             },
             include: {
@@ -352,7 +362,8 @@ router.get("/getallstudentsc",async (req,res)=>{
         const studentsc = await prisma.student.findMany({
             where:{
                 scholarshipApplied:true,
-                session:session
+                session:session,
+                college: req.college
             }
         })
         if (studentsc) {
@@ -393,7 +404,7 @@ router.put("/update/student/:id", async (req, res) => {
     try {
         // Update student details
         const updatedStudent = await prisma.student.update({
-            where: { id: studentId},
+            where: { id: studentId },
             data: {
                 fullName,
                 gender,

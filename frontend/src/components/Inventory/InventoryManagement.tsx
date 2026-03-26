@@ -40,6 +40,7 @@ const InventoryManagement: React.FC = () => {
   ];
 
   const genders = ["All", "Male", "Female"];
+  const availableSizes = ["XS", "S", "M", "L", "XL", "XXL", "XXXL"];
 
   // Fetch all inventory items
   useEffect(() => {
@@ -57,6 +58,17 @@ const InventoryManagement: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const toggleSize = (size: string) => {
+    const currentSizes = formData.size ? formData.size.split(",").map(s => s.trim()).filter(s => s) : [];
+    let newSizes;
+    if (currentSizes.includes(size)) {
+      newSizes = currentSizes.filter(s => s !== size);
+    } else {
+      newSizes = [...currentSizes, size];
+    }
+    setFormData({ ...formData, size: newSizes.join(",") });
   };
 
   const handleInputChange = (
@@ -257,17 +269,38 @@ const InventoryManagement: React.FC = () => {
             </div>
 
             <div style={{ marginBottom: "15px" }}>
-              <label>Size (for uniforms)</label>
+              <label>Available Sizes (Select multiple)</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '5px' }}>
+                {availableSizes.map(sz => (
+                  <button
+                    key={sz}
+                    type="button"
+                    onClick={() => toggleSize(sz)}
+                    style={{
+                      padding: '5px 12px',
+                      borderRadius: '20px',
+                      border: '1px solid #007bff',
+                      backgroundColor: formData.size.split(',').includes(sz) ? '#007bff' : 'transparent',
+                      color: formData.size.split(',').includes(sz) ? 'white' : '#007bff',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    {sz}
+                  </button>
+                ))}
+              </div>
               <input
                 type="text"
                 name="size"
-                value={(formData as any).size}
+                value={formData.size}
                 onChange={handleInputChange}
-                placeholder="e.g., XL, Large, Medium, Small"
+                placeholder="Or type custom sizes (comma separated)"
                 style={{
                   width: "100%",
                   padding: "8px",
-                  marginTop: "5px",
+                  marginTop: "10px",
                   borderRadius: "4px",
                   border: "1px solid #ddd",
                 }}

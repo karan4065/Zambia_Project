@@ -11,7 +11,11 @@ const { exec } = require("child_process");
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, "uploads/photos/");
+    const uploadDir = 'uploads/photos/';
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
@@ -68,7 +72,7 @@ router.get('/excelstudents', async (req, res) => {
   const session = req.session;
   try {
     const studentsInfo = await prisma.student.findMany({
-      where: { session: session },
+      where: { session: session, college: req.college },
       include: {
         parents: true,
         fees: true,
@@ -260,8 +264,9 @@ router.post("/upload", upload.single("file"), async (req, res) => {
             create: student.parents,
           },
           fees: {
-            create: student.fees,
+            create: student.fees.map(f => ({ ...f, college: req.college })),
           },
+          college: req.college
         },
       });
     }
@@ -282,6 +287,7 @@ router.get('/reportsdata', async (req, res) => {
     const studentData = await prisma.student.findMany({
       where: {
         session: session,
+        college: req.college
       },
       include: {
         fees: true,  // Include the related fees data
@@ -300,8 +306,8 @@ router.get('/reportsdata', async (req, res) => {
     });
 
     // Get hostel count and bed-related data
-    const hostelData = await prisma.hostel.count();
-    let totalBed = await prisma.control.findFirst();
+    const hostelData = await prisma.hostel.count({ where: { college: req.college } });
+    let totalBed = await prisma.control.findFirst({ where: { college: req.college } });
     totalBed = totalBed?.number_of_hostel_bed ?? 0;
     const sumBed = totalBed - hostelData;
 
@@ -315,29 +321,26 @@ router.get('/reportsdata', async (req, res) => {
 
 
 router.post("/changesFromControlPanel", async (req, res) => {
-  const { number_of_hostel_bed, institutioName, hostelName, schoolAddress, totalFee, schoolLogo, year, lunchFee } = req.body;
+  const { number_of_hostel_bed, institutioName, hostelName, schoolAddress, totalFee, schoolLogo, year, lunchFee, college } = req.body;
+  const activeCollege = req.college || college || null;
 
   if (!year) {
     return res.status(400).json({ error: 'Session year is required' });
   }
 
   try {
-    // Find the session by year
+    // Find the session by year and college
     const sessionRecord = await prisma.session.findUnique({
-      where: { year }
+      where: { year_college: { year, college: activeCollege } }
     });
 
     if (!sessionRecord) {
-      return res.status(404).json({ error: 'Session not found' });
+      return res.status(404).json({ error: 'Session not found. Please add the session first.' });
     }
-
-    // Check if control record exists for this session
-    let existingRecord = await prisma.control.findUnique({
-      where: { sessionId: sessionRecord.id }
-    });
 
     const payload = {
       sessionId: sessionRecord.id,
+      college: activeCollege,
       number_of_hostel_bed: number_of_hostel_bed ? parseInt(number_of_hostel_bed) : undefined,
       Institution_name: institutioName,
       Institution_hostel_name: hostelName,
@@ -347,31 +350,38 @@ router.post("/changesFromControlPanel", async (req, res) => {
       lunchFee: lunchFee ? parseFloat(lunchFee) : undefined,
     };
 
-    if (!existingRecord) {
-      // look for a legacy control record with null sessionId
-      existingRecord = await prisma.control.findFirst({ where: { sessionId: null } });
-    }
-
-    if (!existingRecord) {
-      const newRecord = await prisma.control.create({ data: payload });
-      return res.status(201).json(newRecord);
-    }
-
-    // if we found a legacy record and it didn't have sessionId, ensure we set it
-    const updatedRecord = await prisma.control.update({
-      where: { id: existingRecord.id },
-      data: {
-        sessionId: sessionRecord.id,
-        number_of_hostel_bed: payload.number_of_hostel_bed,
-        Institution_name: payload.Institution_name,
-        Institution_hostel_name: payload.Institution_hostel_name,
-        SchoolAddress: payload.SchoolAddress,
-        TotalFees: payload.TotalFees,
-        SchoolLogo: payload.SchoolLogo,
-        lunchFee: payload.lunchFee,
-      }
+    // 1. Try to find session-specific record
+    let existingRecord = await prisma.control.findUnique({
+      where: { sessionId_college: { sessionId: sessionRecord.id, college: activeCollege } }
     });
-    return res.status(200).json(updatedRecord);
+
+    if (existingRecord) {
+      // Update session-specific record
+      const updated = await prisma.control.update({
+        where: { id: existingRecord.id },
+        data: payload
+      });
+      return res.status(200).json(updated);
+    }
+
+    // 2. If not found, check for legacy record (null sessionId) for THIS college
+    const legacyRecord = await prisma.control.findFirst({
+      where: { sessionId: null, college: activeCollege }
+    });
+
+    if (legacyRecord) {
+      // Transition legacy record to session-specific
+      const updated = await prisma.control.update({
+        where: { id: legacyRecord.id },
+        data: payload
+      });
+      return res.status(200).json(updated);
+    }
+
+    // 3. If no legacy record, create a new one
+    const newRecord = await prisma.control.create({ data: payload });
+    return res.status(201).json(newRecord);
+
   } catch (error) {
     console.error('Error in changesFromControlPanel:', error);
     return res.status(500).json({ error: 'Server error' });
@@ -381,44 +391,54 @@ router.post("/changesFromControlPanel", async (req, res) => {
 router.get("/getChanges", async (req, res) => {
   try {
     const { year } = req.query;
+    const activeCollege = req.college || req.query.college || null;
 
     if (!year) {
-      // If no year is provided, return the first control record for backward compatibility
-      const controlData = await prisma.control.findFirst();
+      // If no year is provided, return the first control record for this college
+      const controlData = await prisma.control.findFirst({
+        where: { college: activeCollege },
+        orderBy: { sessionId: 'desc' } // prefer session-specific over legacy
+      });
       if (controlData) return res.status(200).json(controlData);
       return res.status(404).json({ message: "Data not found" });
     }
 
-    // Find the session by year
+    // Find the session by year and college
     const sessionRecord = await prisma.session.findUnique({
-      where: { year }
+      where: { year_college: { year, college: activeCollege } }
     });
 
     if (!sessionRecord) {
       return res.status(404).json({ message: "Session not found" });
     }
 
-    // Get control record for this session
+    // Get control record for this session and college
     let controlData = await prisma.control.findUnique({
-      where: { sessionId: sessionRecord.id }
+      where: {
+        sessionId_college: {
+          sessionId: sessionRecord.id,
+          college: activeCollege
+        }
+      }
     });
 
     if (controlData) {
       return res.status(200).json(controlData);
     }
 
-    // if no session-specific record, look for a default record without a sessionId
+    // if no session-specific record, look for a legacy record for this college
     controlData = await prisma.control.findFirst({
-      where: { sessionId: null }
+      where: { sessionId: null, college: activeCollege }
     });
     if (controlData) {
       return res.status(200).json(controlData);
     }
 
-    // If still no config for this session, return blank defaults
+    // If still no config, return blank defaults tied to this session/college
     return res.status(200).json({
       id: null,
       sessionId: sessionRecord.id,
+      college: activeCollege,
       number_of_hostel_bed: null,
       Institution_name: "School",
       Institution_hostel_name: "Hostel",
@@ -492,6 +512,7 @@ router.post("/uploadAttendance", upload.single("file"), async (req, res) => {
           subjectId: at.subjectId ? parseInt(at.subjectId) : null,
           session: at.session,
           studentId: at.studentId,
+          college: req.college
         },
       });
     }
@@ -537,7 +558,8 @@ router.post("/uploadFee", upload.single("file"), async (req, res) => {
           amount: at.amount,
           amountDate: at.amountDate,
           admissionDate: at.admissionDate,
-          studentId: at.studentId
+          studentId: at.studentId,
+          college: req.college
         },
       });
     }
@@ -584,7 +606,8 @@ router.post("/uploadHostel", upload.single("file"), async (req, res) => {
           rollNo: at.rollNo,
           standard: at.standard,
           gender: at.gender,
-          bed_number: at.bed_number
+          bed_number: at.bed_number,
+          college: req.college
         },
       });
     }
@@ -634,7 +657,8 @@ router.post("/uploadMarks", upload.single("file"), async (req, res) => {
           examinationType: at.examinationType,
           obtainedMarks: at.obtainedMarks,
           totalMarks: at.totalMarks,
-          percentage: at.percentage
+          percentage: at.percentage,
+          college: req.college
         },
       });
     }
@@ -656,6 +680,7 @@ router.get('/scholarshipStudents', async (req, res) => {
       where: {
         session: session,
         scholarshipApplied: true,
+        college: req.college
       },
       include: {
         parents: true,
@@ -743,24 +768,50 @@ router.get('/scholarshipStudents', async (req, res) => {
 });
 
 router.post("/credentials", async (req, res) => {
-  const { username, password } = req.body;
+  const { username, password, role, college } = req.body;
+  const token = crypto.randomBytes(16).toString("hex");
+
+  try {
+    const dbUser = await prisma.user.findUnique({ 
+      where: { 
+        username_college: { username, college: college || null } 
+      } 
+    });
+    if (dbUser && dbUser.password === password) {
+      if (dbUser.role !== role) {
+        return res.status(401).json({ message: "Invalid role selected." });
+      }
+      if (dbUser.college && dbUser.college !== college) {
+        return res.status(401).json({ message: "Invalid college selected." });
+      }
+      tokenRoleMap[token] = { role: dbUser.role, college: dbUser.college, username: dbUser.username };
+      return res.status(200).json({ 
+        token, 
+        role: dbUser.role, 
+        college: dbUser.college, 
+        username: dbUser.username 
+      });
+    }
+  } catch (error) {
+    console.error("Error checking DB users:", error);
+  }
+
   const hashedUsername = crypto.createHash("sha256").update(username).digest("hex");
   const hashedPassword = crypto.createHash("sha256").update(password).digest("hex");
   const adminStoredUsername = process.env.ADMIN_HASH ?? "";
   const userStoredUsername = process.env.USER_HASH ?? "";
-  const token = crypto.randomBytes(16).toString("hex");
 
   if (hashedUsername == adminStoredUsername) {
     const adminStoredPassword = process.env.ADMINPASSWORD_HASH;
     if (hashedPassword == adminStoredPassword) {
-      tokenRoleMap[token] = "admin"; // Store token-role mapping
-      return res.status(200).json({ token, role: "admin" });
+      tokenRoleMap[token] = { role: "admin", college: "admin", username: "admin" };
+      return res.status(200).json({ token, role: "admin", college: "admin", username: "admin" });
     }
   } else if (hashedUsername == userStoredUsername) {
     const userStoredPassword = process.env.USERPASSWORD_HASH;
     if (hashedPassword == userStoredPassword) {
-      tokenRoleMap[token] = "teacher"; // Store token-role mapping
-      return res.status(200).json({ token, role: "teacher" });
+      tokenRoleMap[token] = { role: "teacher", college: "st vincent", username: "teacher" };
+      return res.status(200).json({ token, role: "teacher", college: "st vincent", username: "teacher" });
     }
   }
   return res.status(401).json({ message: "Invalid credentials" });
@@ -769,15 +820,22 @@ router.post("/credentials", async (req, res) => {
 const tokenRoleMap = {};
 router.post("/validate-token", (req, res) => {
   const { token } = req.body;
-  const role = tokenRoleMap[token]; // Retrieve role for the token
-  if (role) {
-    return res.status(200).json({ token, role });
+  const userData = tokenRoleMap[token]; // Retrieve user data for the token
+  if (userData) {
+    return res.status(200).json({ 
+      token, 
+      role: userData.role, 
+      college: userData.college, 
+      username: userData.username 
+    });
   }
   return res.status(401).json({ message: "Invalid or expired token" });
 });
 
 router.get("/standards", async (req, res) => {
-  const standard = await prisma.standards.findMany();
+  const standard = await prisma.standards.findMany({
+    where: { college: req.college }
+  });
   if (!standard) {
     return res.status(500).json({ error: "Error fetching standard" })
   }
@@ -788,7 +846,7 @@ router.get("/standard/:std", async (req, res) => {
   try {
     const { std } = req.params;
     const standard = await prisma.standards.findUnique({
-      where: { std: std },
+      where: { std_college: { std: std, college: req.college } },
     });
     if (!standard) {
       return res.status(404).json({ error: "Standard not found" });
@@ -819,7 +877,7 @@ router.get("/dashboard/students", async (req, res) => {
   }
   try {
     const students = await prisma.student.findMany({
-      where: { session },
+      where: { session, college: req.college },
       select: {
         id: true,
         fullName: true,
@@ -847,7 +905,7 @@ router.get("/dashboard/fees", async (req, res) => {
 
     // Fetch students in session (apply class/category filters)
     let students = await prisma.student.findMany({
-      where: { session },
+      where: { session, college: req.college },
       include: { fees: true },
     });
 
@@ -857,13 +915,19 @@ router.get("/dashboard/fees", async (req, res) => {
 
     if (filterCategory) {
       // fetch standards to map categories
-      const standards = await prisma.standards.findMany({ select: { std: true, category: true, totalFees: true } });
+      const standards = await prisma.standards.findMany({ 
+        where: { college: req.college },
+        select: { std: true, category: true, totalFees: true } 
+      });
       const stdMap = Object.fromEntries(standards.map(s => [s.std, s]));
       students = students.filter(s => stdMap[s.standard]?.category === filterCategory);
     }
 
     // Fetch standards fees map
-    const standardFees = await prisma.standards.findMany({ select: { std: true, totalFees: true } });
+    const standardFees = await prisma.standards.findMany({ 
+      where: { college: req.college },
+      select: { std: true, totalFees: true } 
+    });
     const stdFeeMap = Object.fromEntries(standardFees.map(s => [s.std, s.totalFees || 0]));
 
     // Aggregate per-student totals
@@ -901,7 +965,7 @@ router.get("/dashboard/transport", async (req, res) => {
   }
   try {
     const transport = await prisma.student.findMany({
-      where: { session, busAccepted: true },
+      where: { session, busAccepted: true, college: req.college },
       select: {
         id: true,
         fullName: true,
@@ -927,7 +991,7 @@ router.get("/dashboard/lunch", async (req, res) => {
   }
   try {
     const lunch = await prisma.student.findMany({
-      where: { session, lunchAccepted: true },
+      where: { session, lunchAccepted: true, college: req.college },
       select: {
         id: true,
         fullName: true,
@@ -957,6 +1021,7 @@ router.get("/dashboard/teachers", async (req, res) => {
 router.get("/dashboard/sections", async (req, res) => {
   try {
     const sections = await prisma.standards.findMany({
+      where: { college: req.college },
       select: { id: true, std: true, category: true, totalFees: true },
     });
     res.status(200).json(sections);
@@ -977,7 +1042,7 @@ router.get("/dashboard/fees-pending", async (req, res) => {
 
   try {
     let students = await prisma.student.findMany({
-      where: { session },
+      where: { session, college: req.college },
       include: {
         fees: true,
       },
@@ -985,6 +1050,7 @@ router.get("/dashboard/fees-pending", async (req, res) => {
 
     // Get all standards with their categories
     const standards = await prisma.standards.findMany({
+      where: { college: req.college },
       select: { std: true, category: true, totalFees: true },
     });
     const stdMap = Object.fromEntries(standards.map(s => [s.std, s]));
@@ -1040,7 +1106,7 @@ router.get("/dashboard/backup", async (req, res) => {
   try {
     // Fetch all data
     const studentsData = await prisma.student.findMany({
-      where: { session },
+      where: { session, college: req.college },
       include: {
         busStation: { select: { stationName: true } },
         fees: true,
@@ -1051,7 +1117,8 @@ router.get("/dashboard/backup", async (req, res) => {
 
     const feesData = await prisma.fee.findMany({
       where: {
-        student: { session }
+        student: { session, college: req.college },
+        college: req.college
       },
       include: {
         student: {
@@ -1083,6 +1150,7 @@ router.get("/dashboard/backup", async (req, res) => {
     });
 
     const sectionsData = await prisma.standards.findMany({
+      where: { college: req.college },
       select: { std: true, category: true, totalFees: true },
     });
 

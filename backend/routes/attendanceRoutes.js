@@ -26,7 +26,7 @@ router.get("/getstandards", async (req, res) => {
     try {
       const standards = await prisma.student.findMany({
         distinct: ["standard"],
-        where : { session: session},
+        where : { session: session, college: req.college },
         select: {
           standard: true,
         },
@@ -50,7 +50,8 @@ router.get("/getstandards", async (req, res) => {
       const students = await prisma.student.findMany({
         where: {
           standard,
-          session:session
+          session: session,
+          college: req.college
         },
         orderBy: { rollNo: "asc" },
       });
@@ -67,9 +68,9 @@ router.get("/getstandards", async (req, res) => {
     const { selectedStandard } = req.query;
     
     try {
-      let whereClause = {};
+      let whereClause = { college: req.college };
       if (selectedStandard) {
-        whereClause = { stdId: selectedStandard };
+        whereClause.std = { std: selectedStandard, college: req.college };
       }
       const subjects = await prisma.subject.findMany({
         where: whereClause,
@@ -87,13 +88,13 @@ router.get("/getstandards", async (req, res) => {
     const session = req.session;
     try {
       const students = await prisma.student.findMany({
-        where: { standard, session:session },
+        where: { standard, session: session, college: req.college },
       });
   
       let subject = null;
       if (subjectId) {
-        subject = await prisma.subject.findUnique({
-          where: { id: parseInt(subjectId) },
+        subject = await prisma.subject.findFirst({
+          where: { id: parseInt(subjectId), college: req.college },
           select: { name: true },
         });
       }
@@ -107,7 +108,8 @@ router.get("/getstandards", async (req, res) => {
         subjectId: subject ? parseInt(subjectId) : null,
         subjectName: subject ? subject.name : null, // Assign subject name if found
         standard, // Assign standard to each attendance record
-        session
+        session,
+        college: req.college
       }));
   
       await prisma.attendance.createMany({
@@ -130,7 +132,8 @@ router.get("/getstandards", async (req, res) => {
           student: true,
           subject: true,
         },where:{
-          session:session
+          session: session,
+          college: req.college
         }
       });
   

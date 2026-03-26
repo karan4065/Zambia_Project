@@ -10,7 +10,7 @@ router.get("/dashboard/summary", async (req, res) => {
 
     // Students
     const studentData = await prisma.student.findMany({
-      where: { session: session },
+      where: { session: session, college: req.college },
       include: { fees: true }
     });
     const totalStudents = studentData.length;
@@ -20,8 +20,13 @@ router.get("/dashboard/summary", async (req, res) => {
     const totalTeachers = 0; 
 
     // Hostel Beds
-    const hostelData = await prisma.hostel.count();
-    let controlData = await prisma.control.findFirst();
+    const hostelData = await prisma.hostel.count({ where: { college: req.college } });
+    let controlData = await prisma.control.findFirst({
+      where: {
+        session: { year: session, college: req.college },
+        college: req.college
+      }
+    });
     const totalBeds = controlData?.number_of_hostel_bed ?? 0;
     const availableBeds = Math.max(0, totalBeds - hostelData);
 
@@ -35,7 +40,7 @@ router.get("/dashboard/summary", async (req, res) => {
 
     // Approximate pending fees (Requires linking standards to students if standards has totalFee)
     let pendingFees = 0;
-    const standards = await prisma.standards.findMany();
+    const standards = await prisma.standards.findMany({ where: { college: req.college } });
     const stdFeeMap = {};
     standards.forEach(s => {
       stdFeeMap[s.std] = s.totalFees || 0;
@@ -51,10 +56,10 @@ router.get("/dashboard/summary", async (req, res) => {
     });
 
     // Bus stations
-    const totalBusStations = await prisma.busStation.count();
+    const totalBusStations = await prisma.busStation.count({ where: { college: req.college } });
 
     // Inventory Items
-    const totalInventoryItems = await prisma.inventory.count();
+    const totalInventoryItems = await prisma.inventory.count({ where: { college: req.college } });
 
     res.status(200).json({
       totalStudents,
@@ -77,17 +82,17 @@ router.get("/dashboard/student-performance", async (req, res) => {
     try {
         const session = req.session;
         const passedStudents = await prisma.student.count({
-            where: { session: session, status: "Passed" }
+            where: { session: session, college: req.college, status: "Passed" }
         });
         const failedStudents = await prisma.student.count({
-            where: { session: session, status: "Failed" }
+            where: { session: session, college: req.college, status: "Failed" }
         });
         
         let totalStudents = passedStudents + failedStudents;
         
         // If no one is explicitly passed/failed yet, maybe total students that exist
         if (totalStudents === 0) {
-           totalStudents = await prisma.student.count({ where: { session: session }});
+           totalStudents = await prisma.student.count({ where: { session: session, college: req.college }});
         }
         
         let passingPercentage = 0;
@@ -113,7 +118,7 @@ router.get("/dashboard/class-stats", async (req, res) => {
         const session = req.session;
         const students = await prisma.student.groupBy({
             by: ['standard'],
-            where: { session: session },
+            where: { session: session, college: req.college },
             _count: {
                 id: true
             }
@@ -145,7 +150,7 @@ router.get("/dashboard/attendance", async (req, res) => {
         }
 
         // Helper to apply standard and optional subject filter
-        const whereBase = { session };
+        const whereBase = { session, college: req.college };
         if (standard) {
             whereBase.standard = standard;
         }
@@ -255,28 +260,28 @@ router.get("/dashboard/detailed-stats", async (req, res) => {
         // Gender counts
         const genderStats = await prisma.student.groupBy({
             by: ['gender'],
-            where: { session: session },
+            where: { session: session, college: req.college },
             _count: { id: true }
         });
 
         // Category (denomination) counts
         const categoryStats = await prisma.student.groupBy({
             by: ['denomination'],
-            where: { session: session },
+            where: { session: session, college: req.college },
             _count: { id: true }
         });
 
         // Religion counts
         const religionStats = await prisma.student.groupBy({
             by: ['religion'],
-            where: { session: session },
+            where: { session: session, college: req.college },
             _count: { id: true }
         });
 
         // Language counts
         const languageStats = await prisma.student.groupBy({
             by: ['language'],
-            where: { session: session },
+            where: { session: session, college: req.college },
             _count: { id: true }
         });
 
@@ -288,6 +293,104 @@ router.get("/dashboard/detailed-stats", async (req, res) => {
         });
     } catch (error) {
         console.error("Error in dashboard detailed stats:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+// GET /api/dashboard/result-status?standard=...
+router.get("/dashboard/result-status", async (req, res) => {
+    try {
+        const session = req.session;
+        const { standard } = req.query;
+
+        if (!standard) {
+            return res.status(400).json({ error: "Standard parameter is required" });
+        }
+
+        // Get all students in this standard and session
+        const students = await prisma.student.findMany({
+            where: {
+                standard: standard,
+                session: session,
+                college: req.college
+            },
+            select: {
+                id: true,
+                fullName: true
+            }
+        });
+
+        if (students.length === 0) {
+            return res.status(200).json({
+                totalStudents: 0,
+                passedStudents: 0,
+                failedStudents: 0,
+                passPercentage: 0,
+                failPercentage: 0,
+                message: "No students found for this standard"
+            });
+        }
+
+        const studentIds = students.map(s => s.id);
+
+        // Get all marks for "Final Semester" for these students
+        const marks = await prisma.marks.findMany({
+            where: {
+                studentId: { in: studentIds },
+                examinationType: "Final Semester",
+                college: req.college
+            }
+        });
+
+        if (marks.length === 0) {
+            return res.status(200).json({
+                totalStudents: students.length,
+                passedStudents: 0,
+                failedStudents: 0,
+                passPercentage: 0,
+                failPercentage: 0,
+                message: "No final exam marks found for this standard"
+            });
+        }
+
+        // Group marks by student and calculate pass/fail status
+        // A student passes if their average percentage across all subjects is >= 50%
+        const studentStats = {};
+        marks.forEach(m => {
+            if (!studentStats[m.studentId]) {
+                studentStats[m.studentId] = { totalPercentage: 0, count: 0 };
+            }
+            studentStats[m.studentId].totalPercentage += m.percentage;
+            studentStats[m.studentId].count += 1;
+        });
+
+        let passedCount = 0;
+        let failedCount = 0;
+        const evaluatedStudentIds = Object.keys(studentStats);
+
+        evaluatedStudentIds.forEach(sid => {
+            const avg = studentStats[sid].totalPercentage / studentStats[sid].count;
+            if (avg >= 50) {
+                passedCount++;
+            } else {
+                failedCount++;
+            }
+        });
+
+        const totalEvaluated = evaluatedStudentIds.length;
+        const passPercentage = totalEvaluated > 0 ? (passedCount / totalEvaluated) * 100 : 0;
+        const failPercentage = totalEvaluated > 0 ? (failedCount / totalEvaluated) * 100 : 0;
+
+        res.status(200).json({
+            totalStudents: totalEvaluated,
+            passedStudents: passedCount,
+            failedStudents: failedCount,
+            passPercentage: parseFloat(passPercentage.toFixed(2)),
+            failPercentage: parseFloat(failPercentage.toFixed(2))
+        });
+
+    } catch (error) {
+        console.error("Error in dashboard result-status:", error);
         res.status(500).json({ error: "Internal Server Error" });
     }
 });

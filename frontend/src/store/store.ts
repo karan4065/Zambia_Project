@@ -19,12 +19,12 @@ export const sessionYear = atom({
   default: ["2024-2025"],
 });
 
-export const standardList = atom({
+export const standardList = atom<string[]>({
   key: "standard",
   default: [],
 });
 
-export const installmentArr = atom({
+export const installmentArr = atom<string[]>({
   key: "installments",
   default: [],
 });

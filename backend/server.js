@@ -22,22 +22,63 @@ const rag = require("./routes/ragRoutes");
 
 const app = express();
 
-app.use(cors());
+app.use(cors(
+    {
+        origin: "http://localhost:5173",
+        credentials: true
+    }
+));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// 1. Multi-tenancy & Session Middleware (CRITICAL: Define before any routes)
+app.use(async (req, res, next) => {
+    try {
+        // Capture college from header or query param
+        const college = req.headers['x-college-name'] || req.query.college || 'st vincent';
+        req.college = college;
+
+        // Check query parameter or header for session year
+        let session = req.query.session || req.headers['x-session'];
+
+        // If not in query/header, check persisted session
+        if (!session) {
+            session = sessionManager.getSession();
+        }
+
+        // Fallback to latest session from database for THIS college if still not found
+        if (!session) {
+            const latestSession = await prisma.session.findFirst({
+                where: { college: req.college },
+                orderBy: { year: 'desc' }
+            });
+            session = latestSession ? latestSession.year : '2025-2026';
+        }
+
+        req.session = session;
+        next();
+    } catch (error) {
+        console.error("Session middleware error:", error);
+        req.session = '2025-2026';
+        req.college = 'st vincent';
+        next();
+    }
+});
+
 app.post('/session', async (req, res) => {
-    const { year } = req.body;
+    const { year, college } = req.body;
+    const targetCollege = college || req.college || 'st vincent';
 
     if (!year) {
         return res.status(400).json({ error: 'Year is required' });
     }
 
     try {
+        // Use req.college set by middleware
         const session = await prisma.session.create({
-            data: { year },
+            data: { year, college: req.college },
         });
         return res.status(200).json({ message: 'Year stored', session });
     } catch (error) {
@@ -45,7 +86,7 @@ app.post('/session', async (req, res) => {
 
         // Check if the error is a unique constraint violation
         if (error.code === 'P2002') { // Prisma unique constraint violation error code
-            return res.status(409).json({ error: 'Session already exists' });
+            return res.status(409).json({ error: 'Session already exists for this college' });
         }
 
         return res.status(500).json({ error: 'An error occurred while storing the session' });
@@ -54,7 +95,9 @@ app.post('/session', async (req, res) => {
 
 app.get('/getSessions', async (req, res) => {
     try {
+        // Simplify: middleware already sets req.college correctly
         const fetchSession = await prisma.session.findMany({
+            where: { college: req.college },
             orderBy: {
                 year: 'desc'
             }
@@ -62,8 +105,6 @@ app.get('/getSessions', async (req, res) => {
         return res.status(200).json(fetchSession)
     } catch (error) {
         console.error("Error fetching session: ", error.message);
-        console.error("Stack trace:", error.stack);
-
         return res.status(500).json({ error: 'An error occurred while fetching sessions', details: error.message });
     }
 })
@@ -82,35 +123,6 @@ app.get('/setSession', (req, res) => {
     } catch (error) {
         console.error("Error in /setSession route:", error);
         res.status(500).json({ error: "An internal server error occurred" });
-    }
-});
-
-
-// Middleware to attach the session to the request object
-app.use(async (req, res, next) => {
-    try {
-        // 1. Check query parameter or header (highest priority)
-        let session = req.query.session || req.headers['x-session'];
-        
-        // 2. If not in query/header, check persisted session
-        if (!session) {
-            session = sessionManager.getSession();
-        }
-
-        // 3. Fallback to latest session from database if still not found
-        if (!session) {
-            const latestSession = await prisma.session.findFirst({
-                orderBy: { year: 'desc' }
-            });
-            session = latestSession ? latestSession.year : '2025-2026';
-        }
-
-        req.session = session;
-        next();
-    } catch (error) {
-        console.error("Session middleware error:", error);
-        req.session = '2025-2026';
-        next();
     }
 });
 

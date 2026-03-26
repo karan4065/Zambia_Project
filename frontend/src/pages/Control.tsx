@@ -2,7 +2,10 @@ import React, { useEffect, useState } from 'react';
 import {
   addControlValues, addStandard, currentSession, uploadSchoolLogo,
   getAllStandards, updateStandard, deleteStandard, getSubjectsForStandard,
-  deleteSubject, addSubjectsWithInstallment, getAllSessions, fetchInstallments
+  deleteSubject, addSubjectsWithInstallment, getAllSessions, fetchInstallments,
+  fetchControlConfig, fetchCategories, addCategory, deleteCategory,
+  fetchUsers, addUser, deleteUser,
+  fetchColleges, addCollege, deleteCollege
 } from '../apis/api';
 import { useSetRecoilState } from 'recoil';
 import { installmentArr } from '../store/store';
@@ -35,14 +38,44 @@ interface Installment {
   installments: string;
 }
 
+interface Category {
+  id: number;
+  name: string;
+}
+
+interface User {
+  id: number;
+  username: string;
+  role: string;
+  college?: string;
+}
+
+interface College {
+  id: number;
+  name: string;
+}
+
 const Control: React.FC = () => {
   // State declarations - organized at top
   const [Standard, setStandard] = useState<string>('');
-  const [standardCategory, setStandardCategory] = useState<string>('Kindergarten');
+  const [standardCategory, setStandardCategory] = useState<string>('');
   const [StandardTotalFees, setStandardTotalFees] = useState<number>(0);
   const [dropdownStandard, setDropdownStandard] = useState<string>('');
   const [SubString, setSubString] = useState<string>('');
   const [subjectTotalMarks, setSubjectTotalMarks] = useState<string>('100');
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [newCategoryName, setNewCategoryName] = useState<string>('');
+  const [showManageCategories, setShowManageCategories] = useState<boolean>(false);
+  const [showManageUsers, setShowManageUsers] = useState<boolean>(false);
+  const [newUsername, setNewUsername] = useState<string>('');
+  const [newPassword, setNewPassword] = useState<string>('');
+  const [newUserRole, setNewUserRole] = useState<string>('teacher');
+  const [newUserCollege, setNewUserCollege] = useState<string>('');
+  const [showNewCollegeInput, setShowNewCollegeInput] = useState<boolean>(false);
+  const [colleges, setColleges] = useState<College[]>([]);
+  const [newCollegeName, setNewCollegeName] = useState<string>('');
+  const [showManageColleges, setShowManageColleges] = useState<boolean>(false);
 
   const [num_of_beds, setNum_of_beds] = useState<number>(0);
   const [InstitutionName, setInstitutionName] = useState<string>('');
@@ -55,7 +88,6 @@ const Control: React.FC = () => {
   const [newinstallment, setNewinstallment] = useState<boolean>(false);
   const [uinstallment, setUinstallment] = useState<string>('');
   const [uinstallment2, setUinstallment2] = useState<string>('');
-  const [standard, setStandardList] = useState<string[]>(['1st']);
   const [input1, setInput1] = useState<string>('');
   const [input2, setInput2] = useState<string>('');
 
@@ -63,7 +95,11 @@ const Control: React.FC = () => {
   const [standards, setStandards] = useState<Standard[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [selectedSessionForConfig, setSelectedSessionForConfig] = useState<string>("");
-const [isLoadingConfig, setIsLoadingConfig] = useState<boolean>(false);
+  const [isLoadingConfig, setIsLoadingConfig] = useState<boolean>(false);
+  // Keep isLoadingConfig used to satisfy lint
+  useEffect(() => {
+    if (isLoadingConfig) console.log("Loading config...");
+  }, [isLoadingConfig]);
   const [installments, setInstallments] = useState<Installment[]>([]);
 
   const setGlobalInstallments = useSetRecoilState(installmentArr);
@@ -88,16 +124,52 @@ const [isLoadingConfig, setIsLoadingConfig] = useState<boolean>(false);
       try {
         const response = await axios.get('http://localhost:5000/standards');
         const standardsData = response.data?.standard || [];
-        const standardArr = standardsData.map((ele: { std: string; id: number }) => ele.std);
-        setStandardList(standardArr);
+        setStandards(standardsData);
       } catch (error) {
-        console.error('Error fetching standards:', error);
       }
     };
     fetchStandards();
     loadSessions();
     loadInstallments();
+    loadCategories();
+    loadUsers();
+    loadColleges();
   }, []);
+
+  const loadUsers = async () => {
+    try {
+      const data = await fetchUsers();
+      setUsers(data);
+    } catch (error) {
+      console.error('Error loading users:', error);
+    }
+  };
+
+  const loadCategories = async () => {
+    try {
+      const data = await fetchCategories();
+      setCategories(data);
+      if (data.length > 0) {
+        setStandardCategory(data[0].name);
+      }
+    } catch (error) {
+      console.error('Error loading categories:', error);
+    }
+  };
+
+  const loadColleges = async () => {
+    try {
+      const data = await fetchColleges();
+      setColleges(data);
+      if (data.length > 0 && !newUserCollege) {
+        setNewUserCollege(data[0].name);
+      }
+      // Notify other components (like Login in App.tsx)
+      window.dispatchEvent(new CustomEvent('collegesUpdated'));
+    } catch (error) {
+      console.error('Error loading colleges:', error);
+    }
+  };
 
   const loadSessions = async () => {
     try {
@@ -108,38 +180,14 @@ const [isLoadingConfig, setIsLoadingConfig] = useState<boolean>(false);
     }
   };
 
-  // when a session is selected we load its existing control configuration
-  useEffect(() => {
-    const fetchConfig = async () => {
-      if (!selectedSessionForConfig) return;
-      setIsLoadingConfig(true);
-      try {
-        const cfg = await fetchControlConfig(selectedSessionForConfig);
-        if (cfg) {
-          setInstitutionName(cfg.Institution_name || '');
-          setHostelName(cfg.Institution_hostel_name || '');
-          setSchoolAddress(cfg.SchoolAddress || '');
-          setNum_of_beds(cfg.number_of_hostel_bed || 0);
-          setTotalFee(cfg.TotalFees || 0);
-          setLunchFee(cfg.lunchFee || 0);
-          setUrl(cfg.SchoolLogo || '');
-        }
-      } catch (e) {
-        console.error('Failed to load control config for session', e);
-      } finally {
-        setIsLoadingConfig(false);
-      }
-    };
-    fetchConfig();
-  }, [selectedSessionForConfig]);
-
   // fetch config for selected session
   useEffect(() => {
     const fetchConfig = async () => {
       if (!selectedSessionForConfig) return;
       setIsLoadingConfig(true);
       try {
-        const cfg = await fetchControlConfig(selectedSessionForConfig);
+        const college = localStorage.getItem('userCollege');
+        const cfg = await fetchControlConfig(selectedSessionForConfig, college || undefined);
         if (cfg) {
           setInstitutionName(cfg.Institution_name || '');
           setHostelName(cfg.Institution_hostel_name || '');
@@ -182,9 +230,9 @@ const [isLoadingConfig, setIsLoadingConfig] = useState<boolean>(false);
     }
   };
 
-  const loadSubjectsForStandard = async (std: string) => {
+  const loadSubjectsForStandard = async (id: number) => {
     try {
-      const data = await getSubjectsForStandard(std);
+      const data = await getSubjectsForStandard(id);
       setSubjects(data);
     } catch (error) {
       console.error('Error loading subjects:', error);
@@ -246,7 +294,8 @@ const [isLoadingConfig, setIsLoadingConfig] = useState<boolean>(false);
 
   const handleUpdateStandard = async (std: Standard) => {
     try {
-      await updateStandard(std.std, {
+      if (!std.id) throw new Error("Standard ID missing");
+      await updateStandard(std.id, {
         totalFees: editedTotalFees,
         category: editedCategory
       });
@@ -259,10 +308,10 @@ const [isLoadingConfig, setIsLoadingConfig] = useState<boolean>(false);
     }
   };
 
-  const handleDeleteStandard = async (std: string) => {
-    if (window.confirm(`Are you sure you want to delete standard ${std}?`)) {
+  const handleDeleteStandard = async (id: number, name: string) => {
+    if (window.confirm(`Are you sure you want to delete standard ${name}?`)) {
       try {
-        await deleteStandard(std);
+        await deleteStandard(id);
         alert('Standard deleted successfully');
         loadAllStandards();
       } catch (error: any) {
@@ -278,7 +327,7 @@ const [isLoadingConfig, setIsLoadingConfig] = useState<boolean>(false);
         await deleteSubject(id);
         alert('Subject deleted successfully');
         if (selectedSubjectsStandard) {
-          loadSubjectsForStandard(selectedSubjectsStandard);
+          loadSubjectsForStandard(parseInt(selectedSubjectsStandard));
         }
       } catch (error) {
         console.error('Error deleting subject:', error);
@@ -289,12 +338,15 @@ const [isLoadingConfig, setIsLoadingConfig] = useState<boolean>(false);
 
   const handleSubmitSubjects = async () => {
     try {
-      if (!SubString.trim()) {
-        alert('Please enter subjects');
+      if (!dropdownStandard) {
+        alert("Please select a valid standard");
         return;
       }
-      if (!dropdownStandard) {
-        alert('Please select a standard');
+
+      const standardId = parseInt(dropdownStandard);
+
+      if (!SubString.trim()) {
+        alert('Please enter subjects');
         return;
       }
 
@@ -312,7 +364,7 @@ const [isLoadingConfig, setIsLoadingConfig] = useState<boolean>(false);
         }));
 
       const data = {
-        std: dropdownStandard,
+        stdId: standardId,
         subjects: subjectsArray,
       };
 
@@ -322,12 +374,13 @@ const [isLoadingConfig, setIsLoadingConfig] = useState<boolean>(false);
         setSubString('');
         setSubjectTotalMarks('100');
         if (selectedSubjectsStandard === dropdownStandard) {
-          loadSubjectsForStandard(dropdownStandard);
+          loadSubjectsForStandard(standardId);
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding subjects:', error);
-      alert('Failed to add subjects');
+      const detail = error.response?.data?.details || error.message || '';
+      alert(`Failed to add subjects. ${detail}`);
     }
   };
 
@@ -347,6 +400,7 @@ const [isLoadingConfig, setIsLoadingConfig] = useState<boolean>(false);
         url,
         lunchFee,
         year: selectedSessionForConfig,
+        college: localStorage.getItem('userCollege') || undefined,
       };
 
       const controlDataStatus = await addControlValues(data);
@@ -404,6 +458,111 @@ const [isLoadingConfig, setIsLoadingConfig] = useState<boolean>(false);
     } catch (err) {
       console.log(err);
       alert('Failed to update installment');
+    }
+  };
+
+  const handleAddCategory = async () => {
+    if (!newCategoryName.trim()) return;
+    try {
+      await addCategory(newCategoryName);
+      alert('Category added successfully');
+      setNewCategoryName('');
+      loadCategories();
+    } catch (error) {
+      console.error('Error adding category:', error);
+      alert('Failed to add category');
+    }
+  };
+
+  const handleDeleteCategory = async (id: number) => {
+    if (window.confirm('Are you sure you want to delete this category?')) {
+      try {
+        await deleteCategory(id);
+        alert('Category deleted successfully');
+        loadCategories();
+      } catch (error) {
+        console.error('Error deleting category:', error);
+        alert('Failed to delete category');
+      }
+    }
+  };
+
+  const handleAddUser = async () => {
+    if (!newUsername.trim() || !newPassword.trim()) {
+      alert("Username and password are required.");
+      return;
+    }
+    
+    const collegeName = newUserCollege === "new" ? newCollegeName.trim() : newUserCollege.trim();
+    if (!collegeName) {
+      alert("College name is required.");
+      return;
+    }
+
+    try {
+      // Check if this college is already in our managed list
+      const existingCollege = colleges.find(c => c.name.toLowerCase() === collegeName.toLowerCase());
+      if (!existingCollege) {
+        // Auto-add new college to the system
+        try {
+          await addCollege(collegeName);
+          await loadColleges(); // Refresh dropdown list
+        } catch (e) {
+          console.warn('Could not auto-add college:', e);
+        }
+      }
+
+      await addUser({ username: newUsername, password: newPassword, role: newUserRole, college: collegeName });
+      alert('User added successfully');
+      setNewUsername('');
+      setNewPassword('');
+      setNewUserRole('teacher');
+      setNewUserCollege(colleges.length > 0 ? colleges[0].name : '');
+      setNewCollegeName('');
+      setShowNewCollegeInput(false);
+      loadUsers();
+    } catch (error) {
+      console.error('Error adding user:', error);
+      alert('Failed to add user (Username might exist)');
+    }
+  };
+
+  const handleDeleteUser = async (id: number) => {
+    if (window.confirm('Are you sure you want to delete this user?')) {
+      try {
+        await deleteUser(id);
+        alert('User deleted successfully');
+        loadUsers();
+      } catch (error) {
+        console.error('Error deleting user:', error);
+        alert('Failed to delete user');
+      }
+    }
+  };
+
+  const handleAddCollege = async () => {
+    if (!newCollegeName.trim()) return;
+    try {
+      await addCollege(newCollegeName);
+      alert('College added successfully');
+      setNewCollegeName('');
+      loadColleges();
+    } catch (error) {
+      console.error('Error adding college:', error);
+      alert('Failed to add college');
+    }
+  };
+
+  const handleDeleteCollege = async (id: number) => {
+    if (window.confirm('Are you sure you want to delete this college?')) {
+      try {
+        await deleteCollege(id);
+        alert('College deleted successfully');
+        loadColleges();
+      } catch (error) {
+        console.error('Error deleting college:', error);
+        alert('Failed to delete college');
+      }
     }
   };
 
@@ -473,10 +632,9 @@ const [isLoadingConfig, setIsLoadingConfig] = useState<boolean>(false);
         <label>Enter Standards:</label>
         <label>Category:</label>
         <select value={standardCategory} onChange={(e) => setStandardCategory(e.target.value)}>
-          <option value="Kindergarten">Kindergarten</option>
-          <option value="Primary">Primary</option>
-          <option value="Junior Secondary">Junior Secondary</option>
-          <option value="Senior Secondary">Senior Secondary</option>
+          {Array.isArray(categories) && categories.map(cat => (
+            <option key={cat.id} value={cat.name}>{cat.name}</option>
+          ))}
         </select>
         <input
           title="Standard Formating - LKG, UKG, 1st, 2nd, 3rd, 4th, 5th, 6th, 7th, 8th, 9th, 10th"
@@ -505,7 +663,167 @@ const [isLoadingConfig, setIsLoadingConfig] = useState<boolean>(false);
         <button className="btn manage-btn" onClick={() => { setShowManageStandards(!showManageStandards); if (!showManageStandards) loadAllStandards(); }}>
           {showManageStandards ? 'Hide' : 'Manage'} Standards
         </button>
+        <button className="btn manage-btn" style={{ marginLeft: '10px' }} onClick={() => setShowManageCategories(!showManageCategories)}>
+          {showManageCategories ? 'Hide' : 'Manage'} Categories
+        </button>
+        <button className="btn manage-btn" style={{ marginLeft: '10px' }} onClick={() => setShowManageUsers(!showManageUsers)}>
+          {showManageUsers ? 'Hide' : 'Manage'} Users
+        </button>
+        <button className="btn manage-btn" style={{ marginLeft: '10px' }} onClick={() => setShowManageColleges(!showManageColleges)}>
+          {showManageColleges ? 'Hide' : 'Manage'} Colleges
+        </button>
       </div>
+
+      {/* Manage Users Section */}
+      {showManageUsers && (
+        <div className="manage-section">
+          <h3>Manage Users</h3>
+          <div className="add-form" style={{ marginBottom: '20px' }}>
+            <input
+              type="text"
+              placeholder="Username"
+              value={newUsername}
+              onChange={(e) => setNewUsername(e.target.value)}
+            />
+            <input
+              type="password"
+              placeholder="Password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+            />
+            <select 
+              value={newUserCollege} 
+              onChange={(e) => {
+                setNewUserCollege(e.target.value);
+                setShowNewCollegeInput(e.target.value === "new");
+              }}
+            >
+              {colleges.map(col => (
+                <option key={col.id} value={col.name}>{col.name}</option>
+              ))}
+              <option value="new">+ Add New College...</option>
+            </select>
+            {showNewCollegeInput && (
+              <input
+                type="text"
+                placeholder="Enter New College Name"
+                value={newCollegeName}
+                onChange={(e) => setNewCollegeName(e.target.value)}
+              />
+            )}
+            <select value={newUserRole} onChange={(e) => setNewUserRole(e.target.value)}>
+              <option value="admin">Admin</option>
+              <option value="teacher">Teacher</option>
+            </select>
+            <button className="btn" onClick={handleAddUser}>Add User</button>
+          </div>
+          <table className="manage-table">
+            <thead>
+              <tr>
+                <th>Username</th>
+                <th>Role</th>
+                <th>College</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Array.isArray(users) && users.map(user => (
+                <tr key={user.id}>
+                  <td>{user.username}</td>
+                  <td style={{ textTransform: 'capitalize' }}>{user.role}</td>
+                  <td>{user.college || 'N/A'}</td>
+                  <td>
+                    <button
+                      className="btn-delete"
+                      onClick={() => handleDeleteUser(user.id)}
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Manage Colleges Section */}
+      {showManageColleges && (
+        <div className="manage-section">
+          <h3>Manage Colleges</h3>
+          <div className="add-form" style={{ marginBottom: '20px' }}>
+            <input
+              type="text"
+              placeholder="New College Name"
+              value={newCollegeName}
+              onChange={(e) => setNewCollegeName(e.target.value)}
+            />
+            <button className="btn" onClick={handleAddCollege}>Add College</button>
+          </div>
+          <table className="manage-table">
+            <thead>
+              <tr>
+                <th>College Name</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {colleges.map(col => (
+                <tr key={col.id}>
+                  <td>{col.name}</td>
+                  <td>
+                    <button
+                      className="btn-delete"
+                      onClick={() => handleDeleteCollege(col.id)}
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Manage Categories Section */}
+      {showManageCategories && (
+        <div className="manage-section">
+          <h3>Manage Categories</h3>
+          <div style={{ marginBottom: '20px', display: 'flex', gap: '10px' }}>
+            <input
+              type="text"
+              placeholder="New Category Name"
+              value={newCategoryName}
+              onChange={(e) => setNewCategoryName(e.target.value)}
+            />
+            <button className="btn" onClick={handleAddCategory}>Add Category</button>
+          </div>
+          <table className="manage-table">
+            <thead>
+              <tr>
+                <th>Category Name</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Array.isArray(categories) && categories.map(cat => (
+                <tr key={cat.id}>
+                  <td>{cat.name}</td>
+                  <td>
+                    <button
+                      className="btn-delete"
+                      onClick={() => handleDeleteCategory(cat.id)}
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Manage Standards Section */}
       {showManageStandards && (
@@ -539,7 +857,7 @@ const [isLoadingConfig, setIsLoadingConfig] = useState<boolean>(false);
                     </button>
                     <button
                       className="btn-delete"
-                      onClick={() => handleDeleteStandard(std.std)}
+                      onClick={() => handleDeleteStandard(std.id, std.std)}
                     >
                       Delete
                     </button>
@@ -559,10 +877,9 @@ const [isLoadingConfig, setIsLoadingConfig] = useState<boolean>(false);
                 placeholder="Total Fees"
               />
               <select value={editedCategory} onChange={(e) => setEditedCategory(e.target.value)}>
-                <option value="Kindergarten">Kindergarten</option>
-                <option value="Primary">Primary</option>
-                <option value="Junior Secondary">Junior Secondary</option>
-                <option value="Senior Secondary">Senior Secondary</option>
+                {categories.map(cat => (
+                  <option key={cat.id} value={cat.name}>{cat.name}</option>
+                ))}
               </select>
               <button onClick={() => handleUpdateStandard(editingStandard)}>Update</button>
               <button onClick={() => setEditingStandard(null)}>Cancel</button>
@@ -576,11 +893,11 @@ const [isLoadingConfig, setIsLoadingConfig] = useState<boolean>(false);
       {/* Add Subjects Section */}
       <div className="control-section">
         <h2>Add Subjects</h2>
-        <select name="standard" value={dropdownStandard} onChange={handleDropdownStandardChange}>
-          <option value="">Select standard</option>
-          {standard.map((ele, key) => (
-            <option key={key} value={ele}>
-              {ele}
+        <select value={dropdownStandard} onChange={handleDropdownStandardChange}>
+          <option value="">Select Standard</option>
+          {standards.map((std) => (
+            <option key={std.id} value={std.id}>
+              {std.std} ({std.category || 'N/A'})
             </option>
           ))}
         </select>
@@ -622,12 +939,12 @@ const [isLoadingConfig, setIsLoadingConfig] = useState<boolean>(false);
             value={selectedSubjectsStandard}
             onChange={(e) => {
               setSelectedSubjectsStandard(e.target.value);
-              if (e.target.value) loadSubjectsForStandard(e.target.value);
+              if (e.target.value) loadSubjectsForStandard(parseInt(e.target.value));
             }}
           >
             <option value="">Select Standard</option>
             {standards.map(std => (
-              <option key={std.id} value={std.std}>{std.std}</option>
+              <option key={std.id} value={std.id}>{std.std} ({std.category || 'N/A'})</option>
             ))}
           </select>
 

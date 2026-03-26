@@ -26,9 +26,10 @@ router.get("/fees/details", async (req, res) => {
     try {
       const result = await prisma.student.findFirst({
         where: {
-          session:session,
+          session: session,
           standard: standard.toString(),
           rollNo: parseInt(roll_no),
+          college: req.college
         },
         select: {
           id: true,
@@ -107,7 +108,7 @@ router.get("/fees/details", async (req, res) => {
       const whereClause = id ? { id: parseInt(id) } : (standard ? { standard: standard.toString() } : {});
 
       const student = await prisma.student.findFirst({
-        where: whereClause,
+        where: { ...whereClause, college: req.college },
         select: {
           id: true,
           fullName: true,
@@ -153,8 +154,8 @@ router.get("/fees/details", async (req, res) => {
       let standardTotalFees = 0;
       if (student.standard) {
         try {
-          const standardData = await prisma.standards.findUnique({
-            where: { std: student.standard },
+          const standardData = await prisma.standards.findFirst({
+            where: { std: student.standard, college: req.college },
             select: { totalFees: true }
           });
           standardTotalFees = standardData?.totalFees || 0;
@@ -209,6 +210,7 @@ router.get("/fees/details", async (req, res) => {
           amountDate: new Date(amountDate),
           admissionDate: new Date(),
           studentId: parseInt(studentId),
+          college: req.college
         },
       });
   
@@ -223,7 +225,7 @@ router.get("/fees/details", async (req, res) => {
 
   router.get("/downloadfeedata", async (req, res) => {
     try {
-      const feeRecord = await prisma.fee.findMany();
+      const feeRecord = await prisma.fee.findMany({ where: { college: req.college } });
   
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet("Fees");

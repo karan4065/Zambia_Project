@@ -1,10 +1,14 @@
 import axios from "axios";
 import Student from "../pages/Student";
 
+const root = "http://localhost:5000";
+
 // Add a request interceptor to include the session in headers/query for all requests
 axios.interceptors.request.use(
   (config) => {
     const selectedSession = localStorage.getItem("selectedSession");
+    const userCollege = localStorage.getItem("userCollege");
+
     if (selectedSession) {
       // Add as header
       config.headers["x-session"] = selectedSession;
@@ -12,6 +16,14 @@ axios.interceptors.request.use(
       config.params = {
         ...config.params,
         session: selectedSession,
+      };
+    }
+
+    if (userCollege) {
+      config.headers["x-college-name"] = userCollege;
+      config.params = {
+        ...config.params,
+        college: userCollege,
       };
     }
     return config;
@@ -322,7 +334,7 @@ export const fetchStandardsByCategory = async () => {
 
 export const addSubjects = async(data : any)=>{
   const res = await axios.post("http://localhost:5000/control/subjects", {
-      std : data.std,
+      stdId : data.stdId, // Pass the numeric ID
       subjects : data.subjects
   }, {
     headers : {
@@ -372,21 +384,20 @@ export const DownloadScholarshipStudent = async()=>{
   });
 }
 
-export const getInstitutionNameAndLogo = async () => {
+export const getInstitutionNameAndLogo = async (year: string, college?: string) => {
   try {
-    const year = localStorage.getItem('selectedSession');
-    const url = "http://localhost:5000/getChanges" + (year ? `?year=${encodeURIComponent(year)}` : '');
-    const response = await axios.get(url);
-    return response.data;
+    const response = await axios.get(`${root}/getChanges`, { params: { year, college } });
+    const { Institution_name, SchoolLogo } = response.data;
+    return { Institution_name, SchoolLogo };
   } catch (error) {
-    console.error("Error fetching institution name:", error);
-    return { Institution_name: "School", SchoolLogo: null };
+    console.error('Error fetching institution info:', error);
+    return { Institution_name: 'School', SchoolLogo: null };
   }
 };
 
-export const fetchControlConfig = async (year: string) => {
+export const fetchControlConfig = async (year: string, college?: string) => {
   try {
-    const resp = await axios.get('http://localhost:5000/getChanges', { params: { year } });
+    const resp = await axios.get(`${root}/getChanges`, { params: { year, college } });
     return resp.data;
   } catch (err) {
     return null;
@@ -394,11 +405,13 @@ export const fetchControlConfig = async (year: string) => {
 };
 
 
-export const getCredentials = async (username: string, password: string) => {
+export const getCredentials = async (username: string, password: string, role: string, college: string) => {
   try {
     const response = await axios.post("http://localhost:5000/credentials", {
       username,
       password,
+      role,
+      college
     });
     return response.data; 
   } catch (error: any) {
@@ -559,7 +572,15 @@ export const fetchAttendanceSummary = async (
     params,
   });
   return response.data;
-};export const fetchDashboardStudents = async () => {
+};
+
+export const fetchResultStatus = async (standard: string) => {
+  const response = await axios.get(`http://localhost:5000/api/dashboard/result-status`, {
+    params: { standard },
+  });
+  return response.data;
+};
+export const fetchDashboardStudents = async () => {
   try {
     const response = await axios.get("http://localhost:5000/dashboard/students");
     return response.data;
@@ -650,28 +671,28 @@ export const getAllStandards = async () => {
   }
 };
 
-export const updateStandard = async (std: string, data: any) => {
+export const updateStandard = async (id: number, data: any) => {
   try {
-    const response = await axios.put(`http://localhost:5000/control/standard/${std}`, data);
+    const response = await axios.put(`http://localhost:5000/control/standard/${id}`, data);
     return response.data;
   } catch (error) {
     throw new Error("Error updating standard");
   }
 };
 
-export const deleteStandard = async (std: string) => {
+export const deleteStandard = async (id: number) => {
   try {
-    const response = await axios.delete(`http://localhost:5000/control/standard/${std}`);
+    const response = await axios.delete(`http://localhost:5000/control/standard/${id}`);
     return response.data;
   } catch (error) {
     throw new Error("Error deleting standard");
   }
 };
 
-// Get subjects for a standard
-export const getSubjectsForStandard = async (std: string) => {
+// Get subjects for a standard by ID
+export const getSubjectsForStandard = async (id: number) => {
   try {
-    const response = await axios.get(`http://localhost:5000/control/subjects/${std}`);
+    const response = await axios.get(`http://localhost:5000/control/subjects/${id}`);
     return response.data;
   } catch (error) {
     throw new Error("Error fetching subjects");
@@ -769,3 +790,95 @@ export const getStudentMarksForStandard = async (studentId: number, standard: st
     throw new Error("Error fetching student marks");
   }
 };
+
+export const fetchCategories = async () => {
+  try {
+    const response = await axios.get(`${root}/control/categories`);
+    return Array.isArray(response.data) ? response.data : [];
+  } catch (error) {
+    console.error('Error fetching categories:', error);
+    return [];
+  }
+};
+
+export const addCategory = async (name: string) => {
+  try {
+    const response = await axios.post(`${root}/control/category`, { name });
+    return response.data;
+  } catch (error) {
+    console.error('Error adding category:', error);
+    throw error;
+  }
+};
+
+export const deleteCategory = async (id: number) => {
+  try {
+    const response = await axios.delete(`${root}/control/category/${id}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error deleting category:', error);
+    throw error;
+  }
+};
+
+// College Management APIs
+export const fetchColleges = async () => {
+  try {
+    const response = await axios.get(`${root}/control/colleges`);
+    return Array.isArray(response.data) ? response.data : [];
+  } catch (error) {
+    console.error('Error fetching colleges:', error);
+    return [];
+  }
+};
+
+export const addCollege = async (name: string) => {
+  try {
+    const response = await axios.post(`${root}/control/colleges`, { name });
+    return response.data;
+  } catch (error) {
+    console.error('Error adding college:', error);
+    throw error;
+  }
+};
+
+export const deleteCollege = async (id: number) => {
+  try {
+    const response = await axios.delete(`${root}/control/colleges/${id}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error deleting college:', error);
+    throw error;
+  }
+};
+
+// User Management APIs
+export const fetchUsers = async () => {
+  try {
+    const response = await axios.get(`${root}/control/users`);
+    return Array.isArray(response.data) ? response.data : [];
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    return [];
+  }
+};
+
+export const addUser = async (data: any) => {
+  try {
+    const response = await axios.post(`${root}/control/user`, data);
+    return response.data;
+  } catch (error) {
+    console.error('Error adding user:', error);
+    throw error;
+  }
+};
+
+export const deleteUser = async (id: number) => {
+  try {
+    const response = await axios.delete(`${root}/control/user/${id}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    throw error;
+  }
+};

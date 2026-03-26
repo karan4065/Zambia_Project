@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { createStudent, uploadPhoto, fetchStandardsByCategory } from "../apis/api";
+import { createStudent, uploadPhoto, fetchStandardsByCategory, fetchCategories } from "../apis/api";
 import "../styles/student.css";
 import UploadStudents from "../components/Student/AppendStudentExcel";
 import StudentsInfoDownload from "../components/Student/RetriveStudentExcel";
@@ -73,6 +73,7 @@ const Student: React.FC = () => {
     subjects: [] as SubjectMark[],
     result: ''
   });
+  const [selectedMarksheetExam, setSelectedMarksheetExam] = useState('Annual');
   
   const [subjects, setSubjects] = useState<any[]>([]);
   const [tc, setTc] = useState({
@@ -133,16 +134,16 @@ const Student: React.FC = () => {
   
   const [classes, setClasses] = useState<string[]>([]);
   const [standardsByCategory, setStandardsByCategory] = useState<Record<string, string[]>>({});
-  const [categories] = useState<string[]>(['Kindergarten','Primary','Junior Secondary','Senior Secondary']);
+  const [categories, setCategories] = useState<any[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [busStations, setBusStations] = useState<any[]>([]);
   const installmentArray = useRecoilValue(installmentArr);
+
   useEffect(()=>{
     async function fetchSubjects() {
       try {
         const response = await axios.get("http://localhost:5000/getsubjects");
         setSubjects(response.data);
-        // keep existing behavior but don't populate classes here
       } catch (error) {
         console.error("Error fetching subjects:", error);
       }
@@ -155,13 +156,19 @@ const Student: React.FC = () => {
         console.error("Error fetching bus stations:", error);
       }
     }
-    fetchSubjects();
-    fetchBusStations();
+    async function loadCategories() {
+      try {
+        const data = await fetchCategories();
+        setCategories(data);
+      } catch (error) {
+        console.error("Error fetching categories:", error);
+      }
+    }
+    
     // fetch standards grouped by category
     async function fetchStandards() {
       try {
         const grouped = await fetchStandardsByCategory();
-        // Extract std values from objects
         const processedGrouped: Record<string, string[]> = {};
         Object.keys(grouped || {}).forEach(category => {
           const items = grouped[category];
@@ -178,8 +185,7 @@ const Student: React.FC = () => {
         console.error('Error fetching standards by category', err);
       }
     }
-    fetchStandards();
-    // fetch inventory for selection during student creation
+
     async function fetchInventory() {
       try {
         const res = await axios.get("http://localhost:5000/inventory");
@@ -188,6 +194,11 @@ const Student: React.FC = () => {
         console.error('Error fetching inventory', err);
       }
     }
+
+    fetchSubjects();
+    fetchBusStations();
+    loadCategories();
+    fetchStandards();
     fetchInventory();
   },[])
 
@@ -224,18 +235,23 @@ const Student: React.FC = () => {
   
 
   const handleSubmit = async () => {
-    // if (
-    //   !student.fullName ||
-    //   !student.rollNo ||
-    //   !student.dateOfBirth ||
-    //   !student.adhaarCardNo ||
-    //   !student.standard ||
-    //   student.parents.some((parent) => !parent.fatherName || !parent.motherName || !parent.fatherContact || !parent.motherContact) ||
-    //   student.fees.some((fee) => !fee.installmentType || !fee.amountDate || !fee.admissionDate)
-    // ) {
-    //   alert("Please fill all the required fields.");
-    //   return;
-    // }
+    // Validation
+    if (!student.fullName) { alert("Student Full Name is required."); return; }
+    if (!student.rollNo) { alert("Roll Number is required."); return; }
+    if (!student.standard) { alert("Please select a Class (Standard)."); return; }
+    if (!student.dateOfBirth) { alert("Date of Birth is required."); return; }
+
+    for (const [index, parent] of student.parents.entries()) {
+      if (!parent.fatherName) { alert(`Father's Name is missing for parent entry ${index + 1}`); return; }
+      if (!parent.fatherContact) { alert(`Father's Contact Number is missing for parent entry ${index + 1}`); return; }
+      if (!parent.motherName) { alert(`Mother's Name is missing for parent entry ${index + 1}`); return; }
+      if (!parent.motherContact) { alert(`Mother's Contact Number is missing for parent entry ${index + 1}`); return; }
+    }
+
+    if (student.fees.some((fee) => !fee.installmentType || !fee.amountDate)) {
+      alert("Please fill all fee installment details (Type and Date).");
+      return;
+    }
     try {
       // prepare inventory selections
       const inventorySelections = Object.entries(selectedInventory)
@@ -384,7 +400,7 @@ const Student: React.FC = () => {
           studentId,
           subjectId,
           subjectName: subj.name,
-          examinationType: 'Annual',
+          examinationType: selectedMarksheetExam,
           obtainedMarks: subj.marks,
           totalMarks: subj.total,
           percentage
@@ -403,6 +419,10 @@ const Student: React.FC = () => {
   };
 
   const handleMarksheetRollNoBlur = async () => {
+     await fetchMarksForMarksheet(selectedMarksheetExam);
+  };
+
+  const fetchMarksForMarksheet = async (examType: string) => {
     if (!marksheet.rollNo.trim() || !marksheet.class.trim()) {
       return;
     }
@@ -419,7 +439,7 @@ const Student: React.FC = () => {
         setMarksheetError('');
         // Fetch marks and populate subjects
         try {
-          const marksResponse = await axios.get(`http://localhost:5000/api/marks/${studentId}`);
+          const marksResponse = await axios.get(`http://localhost:5000/api/marks/${studentId}?examinationType=${examType}`);
           const marks = marksResponse.data;
           const subjectsFromMarks = marks.map((m: any) => ({ name: m.subjectName, marks: m.obtainedMarks, total: m.totalMarks }));
           setMarksheet((prev) => ({ ...prev, subjects: subjectsFromMarks }));
@@ -559,15 +579,23 @@ const Student: React.FC = () => {
         </div>
         <div>
           <label>Blood Group</label>
-          <input
-            className="StudentInput"
-            type="text"
+          <select
             name="bloodGroup"
             value={student.bloodGroup}
             onChange={(e) =>
               setStudent((prev) => ({ ...prev, bloodGroup: e.target.value }))
             }
-          />
+          >
+            <option value="">Select Blood Group</option>
+            <option value="A+">A+</option>
+            <option value="A-">A-</option>
+            <option value="B+">B+</option>
+            <option value="B-">B-</option>
+            <option value="AB+">AB+</option>
+            <option value="AB-">AB-</option>
+            <option value="O+">O+</option>
+            <option value="O-">O-</option>
+          </select>
         </div>
         <div>
           <label>Religion</label>
@@ -664,8 +692,8 @@ const Student: React.FC = () => {
         <label>Standard Category</label>
         <select value={selectedCategory} onChange={(e) => { setSelectedCategory(e.target.value); setStudent((prev)=>({ ...prev, standard: '' })); }}>
           <option value="">Select category</option>
-          {categories.map((cat, idx) => (
-            <option key={idx} value={cat}>{cat}</option>
+          {Array.isArray(categories) && categories.map((cat, idx) => (
+            <option key={idx} value={cat.name}>{cat.name}</option>
           ))}
         </select>
 
@@ -793,16 +821,24 @@ const Student: React.FC = () => {
                 {selectedInventory[item.id]?.selected && (
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <select
-                      value={selectedInventory[item.id]?.size || item.size || ''}
+                      value={selectedInventory[item.id]?.size || ''}
                       onChange={(e) => setSelectedInventory((prev) => ({ ...prev, [item.id]: { ...(prev[item.id] || {}), size: e.target.value } }))}
                     >
                       <option value="">Size</option>
-                      <option value="XS">XS</option>
-                      <option value="S">S</option>
-                      <option value="M">M</option>
-                      <option value="L">L</option>
-                      <option value="XL">XL</option>
-                      <option value="XXL">XXL</option>
+                      {item.size ? (
+                        item.size.split(',').map((sz: string) => (
+                          <option key={sz.trim()} value={sz.trim()}>{sz.trim()}</option>
+                        ))
+                      ) : (
+                        <React.Fragment>
+                          <option value="XS">XS</option>
+                          <option value="S">S</option>
+                          <option value="M">M</option>
+                          <option value="L">L</option>
+                          <option value="XL">XL</option>
+                          <option value="XXL">XXL</option>
+                        </React.Fragment>
+                      )}
                     </select>
                     <input
                       type="number"
@@ -971,6 +1007,23 @@ const Student: React.FC = () => {
               onChange={(e) => handleMarksheetChange(e, 'rollNo')}
               onBlur={handleMarksheetRollNoBlur}
             />
+          </div>
+          <div>
+            <label>Examination Type</label>
+            <select
+              value={selectedMarksheetExam}
+              onChange={(e) => {
+                const newVal = e.target.value;
+                setSelectedMarksheetExam(newVal);
+                fetchMarksForMarksheet(newVal);
+              }}
+              onBlur={handleMarksheetRollNoBlur}
+            >
+              <option value="Annual">Annual</option>
+              <option value="First Semester">First Semester</option>
+              <option value="Second Semester">Second Semester</option>
+              <option value="Final Semester">Final Semester</option>
+            </select>
           </div>
           {marksheetError && <p style={{ color: 'red' }}>{marksheetError}</p>}
           <button onClick={() => setShowMarksheet(true)}>View</button>

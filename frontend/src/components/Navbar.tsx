@@ -14,9 +14,8 @@ interface NavbarProps {
 const Navbar: React.FC<NavbarProps> = ({ auth, logout }) => {
   const links = [
     { name: "Dashboard", roles: ["admin"] },
-
-    { name: "Student", roles: ["admin"] },
-    { name: "Search", roles: ["admin"] },
+    { name: "Student", roles: ["admin", "teacher"] },
+    { name: "Search", roles: ["admin", "teacher"] },
     { name: "Attendance", roles: ["teacher", "admin"] },
     { name: "Fees", roles: ["admin"] },
     { name: "Hostel", roles: ["admin"] },
@@ -29,7 +28,7 @@ const Navbar: React.FC<NavbarProps> = ({ auth, logout }) => {
   // Initialize state with value from localStorage if available
   const savedSession = localStorage.getItem("selectedSession");
   const [selectYear, setSelectedYear] = useState(
-    savedSession || "2024-2025"
+    savedSession || ""
   );
   const [years, setYears] = useState<string[]>([]);
   const [sessionSelected, setSessionSelected] = useState(!!savedSession);
@@ -49,7 +48,7 @@ const Navbar: React.FC<NavbarProps> = ({ auth, logout }) => {
         const resp = await getCurrentSession();
         const data = resp.data || [];
         const yearsArr = Array.isArray(data) ? data.map((s: any) => s.year || s) : [];
-        setYears(yearsArr.length ? yearsArr : ["2024-2025"]);
+        setYears(yearsArr);
         // Fetch school name and logo for saved session
         const sessionToUse = saved || yearsArr[0];
         const cfg = await fetchControlConfig(sessionToUse);
@@ -57,22 +56,11 @@ const Navbar: React.FC<NavbarProps> = ({ auth, logout }) => {
         setSchoolLogo(cfg?.SchoolLogo || "");
       } catch (err) {
         console.error("Failed to load sessions:", err);
-        setYears(["2024-2025"]);
+        setYears([]);
       }
     };
 
     loadSessions();
-    const handler = async (e: any) => {
-      const updatedYear = e?.detail?.year;
-      const currentYear = localStorage.getItem("selectedSession") || "2024-2025";
-      if (updatedYear && updatedYear === currentYear) {
-        const cfg = await fetchControlConfig(updatedYear);
-        setSchoolName(cfg?.Institution_name || "School");
-        setSchoolLogo(cfg?.SchoolLogo || "");
-      }
-    };
-    window.addEventListener('controlUpdated', handler as EventListener);
-    return () => window.removeEventListener('controlUpdated', handler as EventListener);
   }, []);
 
   const handleYearChange = async (event: { target: { value: SetStateAction<string> } }) => {
