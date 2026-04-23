@@ -1,7 +1,7 @@
 import axios from "axios";
 import Student from "../pages/Student";
 
-const root = "http://localhost:5000";
+const root = `http://${window.location.hostname}:5000`;
 
 // Add a request interceptor to include the session in headers/query for all requests
 axios.interceptors.request.use(
@@ -37,7 +37,7 @@ export const uploadPhoto = async (file: File) => {
   try {
     const formData = new FormData();
     formData.append('file', file);
-    const response = await axios.post<string>("http://localhost:5000/uploadPhoto", formData, {
+    const response = await axios.post<string>(`${root}/uploadPhoto`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -49,14 +49,14 @@ export const uploadPhoto = async (file: File) => {
 };
 
 export const report = async () => {
-  return await axios.get("http://localhost:5000/reportsdata");
+  return await axios.get(`${root}/reportsdata`);
 };
 
 
 //Student Operations
 export const createStudent = async (student: Student) => {
   try {
-    const response = await axios.post("http://localhost:5000/students", student);
+    const response = await axios.post(`${root}/students`, student);
     return response.data;
   } catch (error) {
     throw new Error("Error creating student");
@@ -65,16 +65,16 @@ export const createStudent = async (student: Student) => {
 
 export const updateStudent = async (studentId: number,editableStudent:any) => {
   try {
-    const response = await axios.get(`http://localhost:5000/students/rollNo`, {
+    const response = await axios.get(`http://${window.location.hostname}:5000/students/rollNo`, {
       params: { rollno: editableStudent.rollNo, standard : editableStudent.standard }
     });
     const currentData = response.data;
     if(editableStudent.url){
       console.log(editableStudent.url);
       const updateData = { ...currentData, photoUrl: editableStudent.url};
-      return await axios.put(`http://localhost:5000/update/student/${studentId}`, updateData);
+      return await axios.put(`http://${window.location.hostname}:5000/update/student/${studentId}`, updateData);
     }
-    return await axios.put(`http://localhost:5000/update/student/${studentId}`, editableStudent);  
+    return await axios.put(`http://${window.location.hostname}:5000/update/student/${studentId}`, editableStudent);  
   } catch (error) {
     console.error("Error updating student:", error);
     throw error;
@@ -84,7 +84,7 @@ export const updateStudent = async (studentId: number,editableStudent:any) => {
 
 export const deleteStudent = async (studentId: number) => {
   try {
-    await axios.delete("http://localhost:5000/delete/students", {
+    await axios.delete(`${root}/delete/students`, {
       params: {
         studentId: studentId,
       },
@@ -99,7 +99,7 @@ export const deleteStudent = async (studentId: number) => {
 // As per standard
 export const fetchAllStudents = async (std: string) => {
   try {
-    const response = await axios.get("http://localhost:5000/getallstudent", {
+    const response = await axios.get(`${root}/getallstudent`, {
       params: { std },
     });
     return response.data.result;
@@ -112,7 +112,7 @@ export const fetchAllStudents = async (std: string) => {
 
 export const fetchAllStudentsSc = async()=>{
   try{
-    const res = await axios.get("http://localhost:5000/getallstudentsc");
+    const res = await axios.get(`${root}/getallstudentsc`);
     return res.data;
   }catch(error){
     throw new Error("Error fetching students");
@@ -120,7 +120,7 @@ export const fetchAllStudentsSc = async()=>{
 }
 
 export const downloadStudentsExcel = async () => {
-  return await axios.get('http://localhost:5000/excelstudents', {
+  return await axios.get(`${root}/excelstudents`, {
     responseType: 'blob',
   });
 };
@@ -129,7 +129,7 @@ export const uploadStudentsFile = async (file: File) => {
   const formData = new FormData();
   formData.append('file', file);
 
-  return await axios.post('http://localhost:5000/upload', formData, {
+  return await axios.post(`${root}/upload`, formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
@@ -142,7 +142,7 @@ export const uploadAttendance  = async (file: File) => {
   const formData = new FormData();
   formData.append('file', file);
 
-  return await axios.post('http://localhost:5000/uploadAttendance', formData, {
+  return await axios.post(`${root}/uploadAttendance`, formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
@@ -151,11 +151,11 @@ export const uploadAttendance  = async (file: File) => {
 
 
 export const fetchStandards = async () => {
-    return await axios.get("http://localhost:5000/getstandards");
+    return await axios.get(`${root}/getstandards`);
 };
   
 export const fetchSubjects = async (selectedStandard:string) => {
-    return await axios.get("http://localhost:5000/getsubjects",{
+    return await axios.get(`${root}/getsubjects`,{
       params :{
         selectedStandard
       }
@@ -163,11 +163,11 @@ export const fetchSubjects = async (selectedStandard:string) => {
 };
   
 export const fetchStudents = async (standard: string) => {
-    return await axios.get(`http://localhost:5000/getattendancelist?standard=${standard}`);
+    return await axios.get(`http://${window.location.hostname}:5000/getattendancelist?standard=${standard}`);
 };
   
 export const submitAttendance = async (data: unknown) => {
-    return await axios.post("http://localhost:5000/submitattendance", data, {
+    return await axios.post(`${root}/submitattendance`, data, {
       headers: {
         "Content-Type": "application/json",
       },
@@ -175,7 +175,7 @@ export const submitAttendance = async (data: unknown) => {
 };
 
 export const downloadAttendance = async () => {
-  return await fetch('http://localhost:5000/downloadattendance');
+  return await fetch(`${root}/downloadattendance`);
 };
 
 
@@ -183,7 +183,7 @@ export const downloadAttendance = async () => {
 
 export const downloadHosteldata = async () => {
   console.log("here too");
-  return await axios.get('http://localhost:5000/downloadhosteldata', {
+  return await axios.get(`${root}/downloadhosteldata`, {
     responseType: 'blob',
   });
 };
@@ -192,7 +192,7 @@ export const uploadHosteldata = async (file: File) => {
   const formData = new FormData();
   formData.append('file', file);
 
-  return await axios.post('http://localhost:5000/uploadHostel', formData, {
+  return await axios.post(`${root}/uploadHostel`, formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
@@ -201,11 +201,11 @@ export const uploadHosteldata = async (file: File) => {
 
 
 export const fetchHostelData = async () => {
-    return await axios.get('http://localhost:5000/gethosteldata');
+    return await axios.get(`${root}/gethosteldata`);
   };
   
   export const submitHostelData = async (hostelData: unknown) => {
-    return await axios.post('http://localhost:5000/hosteldata', hostelData, {
+    return await axios.post(`${root}/hosteldata`, hostelData, {
       headers: {
         'Content-Type': 'application/json',
       },
@@ -213,13 +213,13 @@ export const fetchHostelData = async () => {
   };
   
   export const searchStudent = (rollNo: number, standard: string ) => {
-    return axios.get('http://localhost:5000/students/rollNo', {
+    return axios.get(`${root}/students/rollNo`, {
       params: { rollno: rollNo, standard }
     });
   };
   
   export const deleteHostelData = async (data: unknown) => {
-    return await axios.post("http://localhost:5000/hostel/delete", data, {
+    return await axios.post(`${root}/hostel/delete`, data, {
       headers: {
         "Content-Type": "application/json",
       }
@@ -227,7 +227,7 @@ export const fetchHostelData = async () => {
   };
   
   export const updateHostelData = async (data: unknown) => {
-    return await axios.post("http://localhost:5000/updatehostel", data, {
+    return await axios.post(`${root}/updatehostel`, data, {
       headers: {
         "Content-Type": "application/json",
       }
@@ -239,7 +239,7 @@ export const fetchHostelData = async () => {
 
   export const downloadMarks = async () => {
     console.log("here too");
-    return await axios.get('http://localhost:5000/downloadMarks', {
+    return await axios.get(`${root}/downloadMarks`, {
       responseType: 'blob',
     });
   };
@@ -248,7 +248,7 @@ export const fetchHostelData = async () => {
     const formData = new FormData();
     formData.append('file', file);
   
-    return await axios.post('http://localhost:5000/uploadMarks', formData, {
+    return await axios.post(`${root}/uploadMarks`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -256,11 +256,11 @@ export const fetchHostelData = async () => {
   };
 
   export const addMarks = async (formData: unknown) => {
-    return await axios.post("http://localhost:5000/add", formData);
+    return await axios.post(`${root}/add`, formData);
   };
   
   export const searchMarks = async (params: number | string, standard: string) => {
-    return await axios.get("http://localhost:5000/marks/search", {
+    return await axios.get(`${root}/marks/search`, {
       params: {
         params,
         standard
@@ -273,7 +273,7 @@ export const fetchHostelData = async () => {
 
   export const downloadfeedata = async () => {
     console.log("here too");
-    return await axios.get('http://localhost:5000/downloadfeedata', {
+    return await axios.get(`${root}/downloadfeedata`, {
       responseType: 'blob',
     });
   };
@@ -282,7 +282,7 @@ export const fetchHostelData = async () => {
     const formData = new FormData();
     formData.append('file', file);
   
-    return await axios.post('http://localhost:5000/uploadFee', formData, {
+    return await axios.post(`${root}/uploadFee`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -290,17 +290,17 @@ export const fetchHostelData = async () => {
   };
 
   export const fetchStudentFees = async (standard: string, rollNo: string) => {
-    return await axios.get("http://localhost:5000/fees/details", {
+    return await axios.get(`${root}/fees/details`, {
       params: { standard: standard.trim(), roll_no: rollNo.trim() },
     });
   };
   
   export const addFeeInstallment = async (installment: unknown) => {
-    return await axios.post("http://localhost:5000/fees/add", installment);
+    return await axios.post(`${root}/fees/add`, installment);
   };
 
   export const feetable = async (id:number,title:string)=>{
-    const res = await axios.get("http://localhost:5000/feetable", {
+    const res = await axios.get(`${root}/feetable`, {
       params: {
         id,
         title,
@@ -314,7 +314,7 @@ export const fetchHostelData = async () => {
 // control panel
 
 export const addStandard = async(data : any)=>{
-  const res = await axios.post("http://localhost:5000/control/standard", {
+  const res = await axios.post(`${root}/control/standard`, {
       std : data.std,
       totalFees : data.totalFees,
       category: data.category,
@@ -328,12 +328,12 @@ export const addStandard = async(data : any)=>{
 }
 
 export const fetchStandardsByCategory = async () => {
-  const res = await axios.get('http://localhost:5000/control/standardsByCategory');
+  const res = await axios.get(`${root}/control/standardsByCategory`);
   return res.data;
 }
 
 export const addSubjects = async(data : any)=>{
-  const res = await axios.post("http://localhost:5000/control/subjects", {
+  const res = await axios.post(`${root}/control/subjects`, {
       stdId : data.stdId, // Pass the numeric ID
       subjects : data.subjects
   }, {
@@ -356,30 +356,30 @@ export const addControlValues = async(data : any) =>{
     year: data.year, // required: session year
   };
 
-  const res = await axios.post("http://localhost:5000/changesFromControlPanel", payload, {
+  const res = await axios.post(`${root}/changesFromControlPanel`, payload, {
     headers: { 'Content-Type': 'application/json' },
   });
   return res;
 }
 
 export const constants_from_db = async ()=>{
-  const data = await axios.get("http://localhost:5000/getChanges");
+  const data = await axios.get(`${root}/getChanges`);
   return data || {};
 }
 
 
 export const currentSession = async (year : string)=>{
-  return await axios.post("http://localhost:5000/session",{
+  return await axios.post(`${root}/session`,{
     year : year
   });
 }
 
 export const getCurrentSession = async ()=>{
-  return await axios.get("http://localhost:5000/getSessions");
+  return await axios.get(`${root}/getSessions`);
 }
 
 export const DownloadScholarshipStudent = async()=>{
-  return await axios.get('http://localhost:5000/scholarshipStudents', {
+  return await axios.get(`${root}/scholarshipStudents`, {
     responseType: 'blob',
   });
 }
@@ -407,7 +407,7 @@ export const fetchControlConfig = async (year: string, college?: string) => {
 
 export const getCredentials = async (username: string, password: string, role: string, college: string) => {
   try {
-    const response = await axios.post("http://localhost:5000/credentials", {
+    const response = await axios.post(`${root}/credentials`, {
       username,
       password,
       role,
@@ -424,7 +424,7 @@ export const uploadSchoolLogo = async (file: File)=>{
   try {
     const formData = new FormData();
     formData.append('file', file);
-    const response = await axios.post<string>("http://localhost:5000/uploadSchoolLogo", formData, {
+    const response = await axios.post<string>(`${root}/uploadSchoolLogo`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -437,7 +437,7 @@ export const uploadSchoolLogo = async (file: File)=>{
 }
 
 export const fetchInstallments = async ()=>{
-  const response = await axios.get("http://localhost:5000/getInstallments");
+  const response = await axios.get(`${root}/getInstallments`);
   if(response){
     return response.data;
   }
@@ -446,7 +446,7 @@ export const fetchInstallments = async ()=>{
 // Inventory Management APIs
 export const fetchInventory = async () => {
   try {
-    const response = await axios.get("http://localhost:5000/inventory");
+    const response = await axios.get(`${root}/inventory`);
     return response.data;
   } catch (error) {
     throw new Error("Error fetching inventory");
@@ -455,7 +455,7 @@ export const fetchInventory = async () => {
 
 export const createInventoryItem = async (data: any) => {
   try {
-    const response = await axios.post("http://localhost:5000/inventory", data);
+    const response = await axios.post(`${root}/inventory`, data);
     return response.data;
   } catch (error) {
     throw new Error("Error creating inventory item");
@@ -464,7 +464,7 @@ export const createInventoryItem = async (data: any) => {
 
 export const updateInventoryItem = async (id: number, data: any) => {
   try {
-    const response = await axios.put(`http://localhost:5000/inventory/${id}`, data);
+    const response = await axios.put(`http://${window.location.hostname}:5000/inventory/${id}`, data);
     return response.data;
   } catch (error) {
     throw new Error("Error updating inventory item");
@@ -473,7 +473,7 @@ export const updateInventoryItem = async (id: number, data: any) => {
 
 export const deleteInventoryItem = async (id: number) => {
   try {
-    const response = await axios.delete(`http://localhost:5000/inventory/${id}`);
+    const response = await axios.delete(`http://${window.location.hostname}:5000/inventory/${id}`);
     return response.data;
   } catch (error) {
     throw new Error("Error deleting inventory item");
@@ -482,7 +482,7 @@ export const deleteInventoryItem = async (id: number) => {
 
 export const getStudentInventory = async (studentId: number) => {
   try {
-    const response = await axios.get(`http://localhost:5000/student-inventory/${studentId}`);
+    const response = await axios.get(`http://${window.location.hostname}:5000/student-inventory/${studentId}`);
     return response.data;
   } catch (error) {
     throw new Error("Error fetching student inventory");
@@ -491,7 +491,7 @@ export const getStudentInventory = async (studentId: number) => {
 
 export const assignInventoryToStudent = async (data: any) => {
   try {
-    const response = await axios.post("http://localhost:5000/student-inventory", data);
+    const response = await axios.post(`${root}/student-inventory`, data);
     return response.data;
   } catch (error) {
     throw new Error("Error assigning inventory to student");
@@ -501,7 +501,7 @@ export const assignInventoryToStudent = async (data: any) => {
 // Bus Station Operations
 export const fetchBusStations = async () => {
   try {
-    const response = await axios.get("http://localhost:5000/busStations");
+    const response = await axios.get(`${root}/busStations`);
     return response.data;
   } catch (error) {
     throw new Error("Error fetching bus stations");
@@ -510,7 +510,7 @@ export const fetchBusStations = async () => {
 
 export const createBusStation = async (data: any) => {
   try {
-    const response = await axios.post("http://localhost:5000/busStations", data);
+    const response = await axios.post(`${root}/busStations`, data);
     return response.data;
   } catch (error) {
     throw new Error("Error creating bus station");
@@ -519,7 +519,7 @@ export const createBusStation = async (data: any) => {
 
 export const updateBusStation = async (id: number, data: any) => {
   try {
-    const response = await axios.put(`http://localhost:5000/busStations/${id}`, data);
+    const response = await axios.put(`http://${window.location.hostname}:5000/busStations/${id}`, data);
     return response.data;
   } catch (error) {
     throw new Error("Error updating bus station");
@@ -528,7 +528,7 @@ export const updateBusStation = async (id: number, data: any) => {
 
 export const deleteBusStation = async (id: number) => {
   try {
-    const response = await axios.delete(`http://localhost:5000/busStations/${id}`);
+    const response = await axios.delete(`http://${window.location.hostname}:5000/busStations/${id}`);
     return response.data;
   } catch (error) {
     throw new Error("Error deleting bus station");
@@ -537,22 +537,22 @@ export const deleteBusStation = async (id: number) => {
 
 // Dashboard APIs
 export const fetchDashboardOverview = async () => {
-  const response = await axios.get(`http://localhost:5000/api/dashboard/summary`);
+  const response = await axios.get(`http://${window.location.hostname}:5000/api/dashboard/summary`);
   return response.data;
 };
 
 export const fetchDashboardPerformance = async () => {
-  const response = await axios.get(`http://localhost:5000/api/dashboard/student-performance`);
+  const response = await axios.get(`http://${window.location.hostname}:5000/api/dashboard/student-performance`);
   return response.data;
 };
 
 export const fetchDashboardClassStats = async () => {
-  const response = await axios.get(`http://localhost:5000/api/dashboard/class-stats`);
+  const response = await axios.get(`http://${window.location.hostname}:5000/api/dashboard/class-stats`);
   return response.data;
 };
 
 export const fetchDashboardDetailedStats = async () => {
-  const response = await axios.get(`http://localhost:5000/api/dashboard/detailed-stats`);
+  const response = await axios.get(`http://${window.location.hostname}:5000/api/dashboard/detailed-stats`);
   return response.data;
 };
 
@@ -568,21 +568,21 @@ export const fetchAttendanceSummary = async (
   if (date) params.date = date;
   if (subjectId) params.subjectId = subjectId;
 
-  const response = await axios.get(`http://localhost:5000/api/dashboard/attendance`, {
+  const response = await axios.get(`http://${window.location.hostname}:5000/api/dashboard/attendance`, {
     params,
   });
   return response.data;
 };
 
 export const fetchResultStatus = async (standard: string) => {
-  const response = await axios.get(`http://localhost:5000/api/dashboard/result-status`, {
+  const response = await axios.get(`http://${window.location.hostname}:5000/api/dashboard/result-status`, {
     params: { standard },
   });
   return response.data;
 };
 export const fetchDashboardStudents = async () => {
   try {
-    const response = await axios.get("http://localhost:5000/dashboard/students");
+    const response = await axios.get(`${root}/dashboard/students`);
     return response.data;
   } catch (error) {
     throw new Error("Error fetching students");
@@ -595,7 +595,7 @@ export const fetchDashboardFees = async (filterClass?: string, filterCategory?: 
     if (filterClass) params.class = filterClass;
     if (filterCategory) params.category = filterCategory;
 
-    const response = await axios.get("http://localhost:5000/dashboard/fees", { params });
+    const response = await axios.get(`${root}/dashboard/fees`, { params });
     return response.data;
   } catch (error) {
     throw new Error("Error fetching fees");
@@ -604,7 +604,7 @@ export const fetchDashboardFees = async (filterClass?: string, filterCategory?: 
 
 export const fetchDashboardTransport = async () => {
   try {
-    const response = await axios.get("http://localhost:5000/dashboard/transport");
+    const response = await axios.get(`${root}/dashboard/transport`);
     return response.data;
   } catch (error) {
     throw new Error("Error fetching transport");
@@ -613,7 +613,7 @@ export const fetchDashboardTransport = async () => {
 
 export const fetchDashboardLunch = async () => {
   try {
-    const response = await axios.get("http://localhost:5000/dashboard/lunch");
+    const response = await axios.get(`${root}/dashboard/lunch`);
     return response.data;
   } catch (error) {
     throw new Error("Error fetching lunch");
@@ -622,7 +622,7 @@ export const fetchDashboardLunch = async () => {
 
 export const fetchDashboardTeachers = async () => {
   try {
-    const response = await axios.get("http://localhost:5000/dashboard/teachers");
+    const response = await axios.get(`${root}/dashboard/teachers`);
     return response.data;
   } catch (error) {
     throw new Error("Error fetching teachers");
@@ -631,7 +631,7 @@ export const fetchDashboardTeachers = async () => {
 
 export const fetchDashboardSections = async () => {
   try {
-    const response = await axios.get("http://localhost:5000/dashboard/sections");
+    const response = await axios.get(`${root}/dashboard/sections`);
     return response.data;
   } catch (error) {
     throw new Error("Error fetching sections");
@@ -645,7 +645,7 @@ export const fetchFeesPending = async (filterSession?: string, filterClass?: str
     if (filterClass) params.class = filterClass;
     if (filterCategory) params.category = filterCategory;
 
-    const response = await axios.get("http://localhost:5000/dashboard/fees-pending", { params });
+    const response = await axios.get(`${root}/dashboard/fees-pending`, { params });
     return response.data;
   } catch (error) {
     throw new Error("Error fetching fees pending");
@@ -654,7 +654,7 @@ export const fetchFeesPending = async (filterSession?: string, filterClass?: str
 
 export const downloadBackupZip = async () => {
   try {
-    const response = await axios.get("http://localhost:5000/dashboard/backup");
+    const response = await axios.get(`${root}/dashboard/backup`);
     return response.data;
   } catch (error) {
     throw new Error("Error fetching backup data");
@@ -664,7 +664,7 @@ export const downloadBackupZip = async () => {
 // CRUD Operations for Standards
 export const getAllStandards = async () => {
   try {
-    const response = await axios.get("http://localhost:5000/control/standards");
+    const response = await axios.get(`${root}/control/standards`);
     return response.data;
   } catch (error) {
     throw new Error("Error fetching standards");
@@ -673,7 +673,7 @@ export const getAllStandards = async () => {
 
 export const updateStandard = async (id: number, data: any) => {
   try {
-    const response = await axios.put(`http://localhost:5000/control/standard/${id}`, data);
+    const response = await axios.put(`http://${window.location.hostname}:5000/control/standard/${id}`, data);
     return response.data;
   } catch (error) {
     throw new Error("Error updating standard");
@@ -682,7 +682,7 @@ export const updateStandard = async (id: number, data: any) => {
 
 export const deleteStandard = async (id: number) => {
   try {
-    const response = await axios.delete(`http://localhost:5000/control/standard/${id}`);
+    const response = await axios.delete(`http://${window.location.hostname}:5000/control/standard/${id}`);
     return response.data;
   } catch (error) {
     throw new Error("Error deleting standard");
@@ -692,7 +692,7 @@ export const deleteStandard = async (id: number) => {
 // Get subjects for a standard by ID
 export const getSubjectsForStandard = async (id: number) => {
   try {
-    const response = await axios.get(`http://localhost:5000/control/subjects/${id}`);
+    const response = await axios.get(`http://${window.location.hostname}:5000/control/subjects/${id}`);
     return response.data;
   } catch (error) {
     throw new Error("Error fetching subjects");
@@ -702,7 +702,7 @@ export const getSubjectsForStandard = async (id: number) => {
 // Delete a subject
 export const deleteSubject = async (id: number) => {
   try {
-    const response = await axios.delete(`http://localhost:5000/control/subject/${id}`);
+    const response = await axios.delete(`http://${window.location.hostname}:5000/control/subject/${id}`);
     return response.data;
   } catch (error) {
     throw new Error("Error deleting subject");
@@ -712,7 +712,7 @@ export const deleteSubject = async (id: number) => {
 // Add subjects with installment
 export const addSubjectsWithInstallment = async (data: any) => {
   try {
-    const response = await axios.post("http://localhost:5000/control/subjects", data);
+    const response = await axios.post(`${root}/control/subjects`, data);
     return response.data;
   } catch (error) {
     throw new Error("Error adding subjects");
@@ -722,7 +722,7 @@ export const addSubjectsWithInstallment = async (data: any) => {
 // Session Management
 export const getAllSessions = async () => {
   try {
-    const response = await axios.get("http://localhost:5000/getSessions");
+    const response = await axios.get(`${root}/getSessions`);
     return response.data;
   } catch (error) {
     throw new Error("Error fetching sessions");
@@ -731,7 +731,7 @@ export const getAllSessions = async () => {
 
 export const addSession = async (year: string) => {
   try {
-    const response = await axios.post("http://localhost:5000/session", { year });
+    const response = await axios.post(`${root}/session`, { year });
     return response.data;
   } catch (error) {
     throw new Error("Error adding session");
@@ -740,7 +740,7 @@ export const addSession = async (year: string) => {
 // Marks Management - Bulk Operations
 export const fetchSubjectsWithTotalMarks = async (standard: string) => {
   try {
-    const response = await axios.get(`http://localhost:5000/api/subjects-with-marks/${standard}`);
+    const response = await axios.get(`http://${window.location.hostname}:5000/api/subjects-with-marks/${standard}`);
     return response.data;
   } catch (error) {
     console.error("Error fetching subjects with marks:", error);
@@ -751,7 +751,7 @@ export const fetchSubjectsWithTotalMarks = async (standard: string) => {
 export const submitBulkMarks = async (studentId: number, marksData: any[], examinationType: string) => {
   try {
     const response = await axios.post(
-      `http://localhost:5000/api/marks/bulk/${studentId}`,
+      `http://${window.location.hostname}:5000/api/marks/bulk/${studentId}`,
       { marksData, examinationType }
     );
     return response.data;
@@ -763,7 +763,7 @@ export const submitBulkMarks = async (studentId: number, marksData: any[], exami
 
 export const submitSingleMark = async (studentId: number, subjectId: number, subjectName: string, examinationType: string, obtainedMarks: number, totalMarks: number) => {
   try {
-    const response = await axios.post('http://localhost:5000/api/marks', {
+    const response = await axios.post(`${root}/api/marks`, {
       studentId,
       subjectId,
       subjectName,
@@ -782,7 +782,7 @@ export const submitSingleMark = async (studentId: number, subjectId: number, sub
 export const getStudentMarksForStandard = async (studentId: number, standard: string, examinationType: string) => {
   try {
     const response = await axios.get(
-      `http://localhost:5000/api/marks-by-standard/${studentId}/${standard}/${examinationType}`
+      `http://${window.location.hostname}:5000/api/marks-by-standard/${studentId}/${standard}/${examinationType}`
     );
     return response.data;
   } catch (error) {

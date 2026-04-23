@@ -28,7 +28,7 @@ const Chatbot: React.FC = () => {
         setIsLoading(true);
 
         try {
-            const response = await axios.post('http://localhost:5000/api/chat', { message: userMessage });
+            const response = await axios.post(`http://${window.location.hostname}:5000/api/chat`, { message: userMessage });
             setMessages(prev => [...prev, { role: 'bot', text: response.data.response }]);
         } catch (error) {
             console.error('Chat error:', error);

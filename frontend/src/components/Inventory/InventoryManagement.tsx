@@ -50,7 +50,7 @@ const InventoryManagement: React.FC = () => {
   const fetchInventory = async () => {
     try {
       setIsLoading(true);
-      const response = await axios.get("http://localhost:5000/inventory");
+      const response = await axios.get(`http://${window.location.hostname}:5000/inventory`);
       setItems(response.data);
     } catch (error) {
       alert("Error fetching inventory");
@@ -92,13 +92,13 @@ const InventoryManagement: React.FC = () => {
       if (editingId) {
         // Update item
         await axios.put(
-          `http://localhost:5000/inventory/${editingId}`,
+          `http://${window.location.hostname}:5000/inventory/${editingId}`,
           formData
         );
         alert("Item updated successfully");
       } else {
         // Create new item
-        await axios.post("http://localhost:5000/inventory", formData);
+        await axios.post(`http://${window.location.hostname}:5000/inventory`, formData);
         alert("Item created successfully");
       }
       resetForm();
@@ -129,7 +129,7 @@ const InventoryManagement: React.FC = () => {
     }
 
     try {
-      await axios.delete(`http://localhost:5000/inventory/${id}`);
+      await axios.delete(`http://${window.location.hostname}:5000/inventory/${id}`);
       alert("Item deleted successfully");
       // Update local state immediately
       setItems(items.filter(item => item.id !== id));

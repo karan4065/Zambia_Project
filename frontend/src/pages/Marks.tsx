@@ -45,7 +45,7 @@ const Marks: React.FC = () => {
   const fetchSubjectsList = async (standard: string) => {
     setLoadingSubjects(true);
     try {
-      const response = await axios.get(`http://localhost:5000/api/subjects-with-marks/${standard}`);
+      const response = await axios.get(`http://${window.location.hostname}:5000/api/subjects-with-marks/${standard}`);
       const subjectsData = response.data;
       setSubjects(subjectsData);
       
@@ -166,7 +166,7 @@ const Marks: React.FC = () => {
       }));
 
       const response = await axios.post(
-        `http://localhost:5000/api/marks/bulk/${studentId}`,
+        `http://${window.location.hostname}:5000/api/marks/bulk/${studentId}`,
         { marksData, examinationType: exam }
       );
 
@@ -226,7 +226,7 @@ const Marks: React.FC = () => {
           }));
 
           await axios.post(
-            `http://localhost:5000/api/marks/bulk/${student.id}`,
+            `http://${window.location.hostname}:5000/api/marks/bulk/${student.id}`,
             { marksData, examinationType: exam }
           );
 

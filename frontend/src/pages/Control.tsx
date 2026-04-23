@@ -122,7 +122,7 @@ const Control: React.FC = () => {
   useEffect(() => {
     const fetchStandards = async () => {
       try {
-        const response = await axios.get('http://localhost:5000/standards');
+        const response = await axios.get(`http://${window.location.hostname}:5000/standards`);
         const standardsData = response.data?.standard || [];
         setStandards(standardsData);
       } catch (error) {
@@ -427,7 +427,7 @@ const Control: React.FC = () => {
         alert('Please enter installment name');
         return;
       }
-      await axios.post('http://localhost:5000/handleInstallments', {
+      await axios.post(`http://${window.location.hostname}:5000/handleInstallments`, {
         installments: installment,
       });
       alert('Added Successfully');
@@ -444,7 +444,7 @@ const Control: React.FC = () => {
         alert('Please fill both fields');
         return;
       }
-      const res = await axios.post('http://localhost:5000/updateinstallment', {
+      const res = await axios.post(`http://${window.location.hostname}:5000/updateinstallment`, {
         uinstallment,
         uinstallment2,
       });
@@ -601,7 +601,7 @@ const Control: React.FC = () => {
   const handleBackup = async () => {
     try {
       // Trigger download from backend
-      window.location.href = 'http://localhost:5000/api/backup';
+      window.location.href = `http://${window.location.hostname}:5000/api/backup`;
     } catch (error) {
       console.error('Error triggering backup:', error);
       alert('Failed to start backup');
@@ -611,7 +611,7 @@ const Control: React.FC = () => {
   const studentPromoteRoute = async () => {
 
     try {
-      const promotionData = await axios.post('http://localhost:5000/promotion');
+      const promotionData = await axios.post(`http://${window.location.hostname}:5000/promotion`);
       if (promotionData) {
         alert('Student Promoted Successfully');
         window.location.reload();

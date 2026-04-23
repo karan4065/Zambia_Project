@@ -142,7 +142,7 @@ const Student: React.FC = () => {
   useEffect(()=>{
     async function fetchSubjects() {
       try {
-        const response = await axios.get("http://localhost:5000/getsubjects");
+        const response = await axios.get(`http://${window.location.hostname}:5000/getsubjects`);
         setSubjects(response.data);
       } catch (error) {
         console.error("Error fetching subjects:", error);
@@ -150,7 +150,7 @@ const Student: React.FC = () => {
     }
     async function fetchBusStations() {
       try {
-        const response = await axios.get("http://localhost:5000/busStations");
+        const response = await axios.get(`http://${window.location.hostname}:5000/busStations`);
         setBusStations(response.data);
       } catch (error) {
         console.error("Error fetching bus stations:", error);
@@ -188,7 +188,7 @@ const Student: React.FC = () => {
 
     async function fetchInventory() {
       try {
-        const res = await axios.get("http://localhost:5000/inventory");
+        const res = await axios.get(`http://${window.location.hostname}:5000/inventory`);
         setInventoryItems(res.data || []);
       } catch (err) {
         console.error('Error fetching inventory', err);
@@ -215,7 +215,7 @@ const Student: React.FC = () => {
     if (student.standard) {
       async function fetchStandardTotalFees() {
         try {
-          const response = await axios.get(`http://localhost:5000/standard/${student.standard}`);
+          const response = await axios.get(`http://${window.location.hostname}:5000/standard/${student.standard}`);
           const totalFees = response.data?.totalFees || 0;
           setStandardTotalFees(totalFees);
           
@@ -378,7 +378,7 @@ const Student: React.FC = () => {
 
     try {
       // Fetch student by rollNo and class
-      const response = await axios.get(`http://localhost:5000/students/rollNo?rollno=${marksheet.rollNo}&standard=${marksheet.class}`);
+      const response = await axios.get(`http://${window.location.hostname}:5000/students/rollNo?rollno=${marksheet.rollNo}&standard=${marksheet.class}`);
       if (response.status !== 200 || !response.data || response.data.message) {
         alert('Student not found.');
         return;
@@ -396,7 +396,7 @@ const Student: React.FC = () => {
         const subjectId = subject.id;
         const percentage = subj.total > 0 ? (subj.marks / subj.total) * 100 : 0;
 
-        await axios.post('http://localhost:5000/api/marks', {
+        await axios.post(`http://${window.location.hostname}:5000/api/marks`, {
           studentId,
           subjectId,
           subjectName: subj.name,
@@ -428,7 +428,7 @@ const Student: React.FC = () => {
     }
 
     try {
-      const response = await axios.get(`http://localhost:5000/students/rollNo?rollno=${marksheet.rollNo}&standard=${marksheet.class}`);
+      const response = await axios.get(`http://${window.location.hostname}:5000/students/rollNo?rollno=${marksheet.rollNo}&standard=${marksheet.class}`);
       if (response.status === 200 && response.data && !response.data.message) {
         const student = response.data;
         const studentId = student.id;
@@ -439,7 +439,7 @@ const Student: React.FC = () => {
         setMarksheetError('');
         // Fetch marks and populate subjects
         try {
-          const marksResponse = await axios.get(`http://localhost:5000/api/marks/${studentId}?examinationType=${examType}`);
+          const marksResponse = await axios.get(`http://${window.location.hostname}:5000/api/marks/${studentId}?examinationType=${examType}`);
           const marks = marksResponse.data;
           const subjectsFromMarks = marks.map((m: any) => ({ name: m.subjectName, marks: m.obtainedMarks, total: m.totalMarks }));
           setMarksheet((prev) => ({ ...prev, subjects: subjectsFromMarks }));
@@ -467,7 +467,7 @@ const Student: React.FC = () => {
     }
 
     try {
-      const response = await axios.get(`http://localhost:5000/students/rollNo?rollno=${tc.rollNo}&standard=${tc.class}`);
+      const response = await axios.get(`http://${window.location.hostname}:5000/students/rollNo?rollno=${tc.rollNo}&standard=${tc.class}`);
       if (response.status === 200 && response.data && !response.data.message) {
         const student = response.data;
         const studentId = student.id;
@@ -480,7 +480,7 @@ const Student: React.FC = () => {
         }));
         // Fetch marks and calculate annual result and grade
         try {
-          const marksResponse = await axios.get(`http://localhost:5000/api/marks/${studentId}`);
+          const marksResponse = await axios.get(`http://${window.location.hostname}:5000/api/marks/${studentId}`);
           const marks = marksResponse.data;
           const totalObtained = marks.reduce((sum: number, m: any) => sum + m.obtainedMarks, 0);
           const totalPossible = marks.reduce((sum: number, m: any) => sum + m.totalMarks, 0);

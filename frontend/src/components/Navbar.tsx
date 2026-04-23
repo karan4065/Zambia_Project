@@ -84,7 +84,7 @@ const Navbar: React.FC<NavbarProps> = ({ auth, logout }) => {
         return;
       }
 
-      const response = await axios.get(`http://localhost:5000/setSession`, {
+      const response = await axios.get(`http://${window.location.hostname}:5000/setSession`, {
         params: { year: selectYear },
       });
 

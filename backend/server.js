@@ -24,7 +24,7 @@ const app = express();
 
 app.use(cors(
     {
-        origin: "http://localhost:5173",
+        origin: "*", // Allow all origins for local network access
         credentials: true
     }
 ));
@@ -143,6 +143,7 @@ app.use("/api", dashboard);
 
 
 // Start server
-app.listen(5000, () => {
-    console.log(`Server is running on http://localhost:5000`);
+const HOST = '0.0.0.0';
+app.listen(5000, HOST, () => {
+    console.log(`Server is running on http://${HOST}:5000 (accessible at http://192.168.137.40:5000)`);
 });

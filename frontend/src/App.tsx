@@ -64,7 +64,7 @@ const App: React.FC = () => {
           localStorage.setItem("selectedSession", latest);
           setSelectedSession(latest);
           // Set on backend
-          await axios.get(`http://localhost:5000/setSession?year=${latest}`);
+          await axios.get(`http://${window.location.hostname}:5000/setSession?year=${latest}`);
           window.location.reload();
         }
       } catch (err) {
@@ -113,7 +113,7 @@ const App: React.FC = () => {
     localStorage.setItem("selectedSession", newSession);
     setSelectedSession(newSession);
     try {
-      await axios.get(`http://localhost:5000/setSession?year=${newSession}`);
+      await axios.get(`http://${window.location.hostname}:5000/setSession?year=${newSession}`);
       window.location.reload();
     } catch (err) {
       console.error("Error setting session:", err);
@@ -170,7 +170,7 @@ const App: React.FC = () => {
 
   const fetchRole = async (token: string) => {
     try {
-      const response = await axios.post("http://localhost:5000/validate-token", { token }, {
+      const response = await axios.post(`http://${window.location.hostname}:5000/validate-token`, { token }, {
         headers: { "Content-Type": "application/json" },
       });
 

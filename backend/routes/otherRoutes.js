@@ -241,9 +241,33 @@ router.post("/upload", upload.single("file"), async (req, res) => {
     }
   });
 
+  const results = {
+    importedCount: 0,
+    duplicateCount: 0,
+    duplicates: []
+  };
+
   try {
-    // Create students with mapped class ids
     for (const student of students) {
+      // Check if student already exists
+      const existingStudent = await prisma.student.findUnique({
+        where: {
+          standard_rollNo_session_college: {
+            standard: student.standard,
+            rollNo: student.rollNo,
+            session: student.session,
+            college: req.college
+          }
+        }
+      });
+
+      if (existingStudent) {
+        results.duplicateCount++;
+        results.duplicates.push(`${student.fullName} (Roll: ${student.rollNo}, Std: ${student.standard})`);
+        continue;
+      }
+
+      // Create students with mapped class ids
       await prisma.student.create({
         data: {
           fullName: student.fullName,
@@ -269,13 +293,23 @@ router.post("/upload", upload.single("file"), async (req, res) => {
           college: req.college
         },
       });
+      results.importedCount++;
     }
 
-    fs.unlinkSync(filePath);
-    res.status(200).send("File uploaded and data imported successfully");
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+    
+    res.status(200).json({
+      message: "Data import completed",
+      ...results
+    });
   } catch (error) {
     console.error("Error importing data:", error);
-    res.status(500).send("Failed to import data");
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+    res.status(500).json({ error: "Failed to import data", details: error.message });
   }
 });
 
