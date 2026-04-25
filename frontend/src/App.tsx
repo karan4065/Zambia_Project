@@ -16,11 +16,13 @@ import Control from "./pages/Control";
 import Inventory from "./pages/Inventory";
 import Bus from "./pages/Bus";
 import Chatbot from "./components/Chatbot";
+import Login from "./pages/Login";
 import { useRecoilValue, useSetRecoilState } from "recoil";
 import { handleInstitutionLogo, handleInstitutionName, installmentArr, standardList } from "./store/store";
 import { fetchInstallments, getAllStandards, fetchColleges, getInstitutionNameAndLogo, getAllSessions } from "./apis/api";
 import { getCredentials } from "./apis/api";
 import axios from "axios";
+import { School } from "lucide-react";
 
 interface Auth {
   token: string;
@@ -57,16 +59,6 @@ const App: React.FC = () => {
       try {
         const sessionData = await getAllSessions();
         setSessions(sessionData);
-
-        // If no session is selected in localStorage, pick the latest one
-        if (!localStorage.getItem("selectedSession") && sessionData.length > 0) {
-          const latest = sessionData[0].year;
-          localStorage.setItem("selectedSession", latest);
-          setSelectedSession(latest);
-          // Set on backend
-          await axios.get(`http://${window.location.hostname}:5000/setSession?year=${latest}`);
-          window.location.reload();
-        }
       } catch (err) {
         console.error("Error fetching sessions:", err);
       }
@@ -106,25 +98,15 @@ const App: React.FC = () => {
       window.removeEventListener('controlUpdated', handler as EventListener);
       window.removeEventListener('collegesUpdated', loadColleges as EventListener);
     };
-  }, [selectedSession, setInstitutionLogo, setInstitutionName, loadColleges]);
+  }, [selectedSession, setInstitutionLogo, setInstitutionName, loadColleges, auth]);
 
-  const handleSessionChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newSession = e.target.value;
-    localStorage.setItem("selectedSession", newSession);
-    setSelectedSession(newSession);
-    try {
-      await axios.get(`http://${window.location.hostname}:5000/setSession?year=${newSession}`);
-      window.location.reload();
-    } catch (err) {
-      console.error("Error setting session:", err);
-    }
-  };
+
   useEffect(() => {
     const token = localStorage.getItem("token");
     const userRole = localStorage.getItem("userRole");
 
     // Immediately restore auth state from localStorage (fast path for page refresh)
-    if (token && userRole) {
+    if (token && userRole && !auth) {
       setAuth({ token, role: userRole as "teacher" | "admin" });
       setIsLoading(false);
 
@@ -166,7 +148,7 @@ const App: React.FC = () => {
     })();
     // fetch colleges for login dropdown
     loadColleges();
-  }, [loadColleges]);
+  }, [loadColleges, auth, selectedSession]);
 
   const fetchRole = async (token: string) => {
     try {
@@ -191,38 +173,7 @@ const App: React.FC = () => {
   };
 
 
-  const login = async () => {
-    const usernameElement = document.getElementById("username") as HTMLInputElement | null;
-    const passwordElement = document.getElementById("password") as HTMLInputElement | null;
-    const roleElement = document.getElementById("loginRole") as HTMLSelectElement | null;
-    const collegeElement = document.getElementById("loginCollege") as HTMLSelectElement | null;
-    
-    const username = usernameElement?.value || "";
-    const password = passwordElement?.value || "";
-    const selectedRole = roleElement?.value || "admin";
-    const selectedCollege = collegeElement?.value || "";
 
-    if (!username || !password || !selectedCollege) {
-      alert("All fields are required.");
-      return;
-    }
-
-    try {
-      const response = await getCredentials(username, password, selectedRole, selectedCollege);
-      
-      if (response.token && response.role) {
-        localStorage.setItem("token", response.token);
-        localStorage.setItem("userRole", response.role);
-        localStorage.setItem("username", response.username);
-        localStorage.setItem("userCollege", response.college || "");
-        setAuth({ ...response, role: response.role as "admin" | "teacher" });
-        setIsLoading(false);
-      }
-      window.location.reload(); // Reload to refresh all state with new college
-    } catch (error: any) {
-      alert(error.message || "Login failed. Please try again.");
-    }
-  };
 
   const logout = () => {
     setAuth(null);
@@ -231,6 +182,7 @@ const App: React.FC = () => {
     if (localStorage.getItem("selectedSession")) {
       localStorage.removeItem("selectedSession");
     }
+    setSelectedSession("");
     navigate("/");
   };
 
@@ -247,201 +199,11 @@ const App: React.FC = () => {
 
   if (!auth) {
     return (
-      <div style={{ 
-        display: "flex", 
-        justifyContent: "center", 
-        alignItems: "center", 
-        minHeight: "100vh", 
-        background: "radial-gradient(circle at top right, #4f46e5, transparent), radial-gradient(circle at bottom left, #7c3aed, transparent), #1e1b4b",
-        fontFamily: "'Inter', sans-serif",
-        padding: "20px"
-      }}>
-        <div style={{ 
-          padding: "48px 40px", 
-          borderRadius: "32px", 
-          backgroundColor: "rgba(255, 255, 255, 0.98)", 
-          boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
-          width: "100%",
-          maxWidth: "440px",
-          border: "1px solid rgba(255, 255, 255, 0.3)",
-          position: "relative",
-          overflow: "hidden"
-        }}>
-          {/* Subtle decorative element */}
-          <div style={{ 
-            position: "absolute", 
-            top: 0, 
-            left: 0, 
-            width: "100%", 
-            height: "6px", 
-            background: "linear-gradient(90deg, #6366f1, #a855f7)" 
-          }} />
-
-          <div style={{ textAlign: "center", marginBottom: "36px" }}>
-            <h2 style={{ 
-              fontSize: "30px", 
-              fontWeight: "700", 
-              color: "#1e1b4b", 
-              margin: "0 0 10px 0",
-              fontFamily: "'Poppins', sans-serif",
-              letterSpacing: "-0.01em" 
-            }}>School Management System</h2>
-            <p style={{ color: "#64748b", fontSize: "15px", fontWeight: "500" }}>Sign in to continue to your dashboard</p>
-          </div>
-
-          <div style={{ marginBottom: "24px" }}>
-            <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: "600", color: "#475569" }}>Username</label>
-            <div style={{ position: "relative" }}>
-              <input 
-                type="text" 
-                placeholder="Enter your username" 
-                id="username" 
-                style={{ 
-                  width: "100%", 
-                  padding: "14px 16px", 
-                  borderRadius: "14px", 
-                  border: "2px solid #f1f5f9",
-                  backgroundColor: "#f8fafc",
-                  fontSize: "16px",
-                  transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-                  outline: "none",
-                  color: "#1e293b"
-                }} 
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = "#6366f1";
-                  e.currentTarget.style.backgroundColor = "white";
-                  e.currentTarget.style.boxShadow = "0 0 0 4px rgba(99, 102, 241, 0.1)";
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = "#f1f5f9";
-                  e.currentTarget.style.backgroundColor = "#f8fafc";
-                  e.currentTarget.style.boxShadow = "none";
-                }}
-              />
-            </div>
-          </div>
-
-          <div style={{ marginBottom: "24px" }}>
-            <label style={{ display: "block", marginBottom: "8px", fontSize: "14px", fontWeight: "600", color: "#475569" }}>Password</label>
-            <input 
-              type="password" 
-              placeholder="••••••••" 
-              id="password" 
-              style={{ 
-                width: "100%", 
-                padding: "14px 16px", 
-                borderRadius: "14px", 
-                border: "2px solid #f1f5f9",
-                backgroundColor: "#f8fafc",
-                fontSize: "16px",
-                transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-                outline: "none",
-                color: "#1e293b"
-              }} 
-              onFocus={(e) => {
-                e.currentTarget.style.borderColor = "#6366f1";
-                e.currentTarget.style.backgroundColor = "white";
-                e.currentTarget.style.boxShadow = "0 0 0 4px rgba(99, 102, 241, 0.1)";
-              }}
-              onBlur={(e) => {
-                e.currentTarget.style.borderColor = "#f1f5f9";
-                e.currentTarget.style.backgroundColor = "#f8fafc";
-                e.currentTarget.style.boxShadow = "none";
-              }}
-            />
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginBottom: "30px" }}>
-            <div>
-              <label style={{ display: "block", marginBottom: "8px", fontSize: "13px", fontWeight: "700", color: "#64748b", textTransform: "uppercase" }}>Role</label>
-              <select 
-                id="loginRole" 
-                style={{ 
-                  width: "100%", 
-                  padding: "12px", 
-                  borderRadius: "12px", 
-                  border: "2px solid #f1f5f9",
-                  backgroundColor: "#f8fafc",
-                  cursor: "pointer",
-                  outline: "none",
-                  fontWeight: "600",
-                  color: "#334155"
-                }}
-                onFocus={(e) => e.currentTarget.style.borderColor = "#6366f1"}
-                onBlur={(e) => e.currentTarget.style.borderColor = "#f1f5f9"}
-              >
-                <option value="admin">Admin</option>
-                <option value="teacher">Teacher</option>
-              </select>
-            </div>
-            <div>
-              <label style={{ display: "block", marginBottom: "8px", fontSize: "13px", fontWeight: "700", color: "#64748b", textTransform: "uppercase" }}>College</label>
-              <select 
-                id="loginCollege" 
-                defaultValue=""
-                style={{ 
-                  width: "100%", 
-                  padding: "12px", 
-                  borderRadius: "12px", 
-                  border: "2px solid #f1f5f9",
-                  backgroundColor: "#f8fafc",
-                  cursor: "pointer",
-                  outline: "none",
-                  fontWeight: "600",
-                  color: "#334155"
-                }}
-                onFocus={(e) => e.currentTarget.style.borderColor = "#6366f1"}
-                onBlur={(e) => e.currentTarget.style.borderColor = "#f1f5f9"}
-              >
-                <option value="" disabled>Select</option>
-                {availableColleges.map((col: any) => (
-                  <option key={typeof col === 'string' ? col : col.id} value={typeof col === 'string' ? col : col.name}>
-                    {typeof col === 'string' ? col : col.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <button
-            style={{ 
-              width: "100%", 
-              padding: "16px", 
-              background: "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)", 
-              color: "white", 
-              border: "none", 
-              borderRadius: "16px", 
-              cursor: "pointer", 
-              fontSize: "16px",
-              fontWeight: "700",
-              boxShadow: "0 10px 15px -3px rgba(79, 70, 229, 0.4)",
-              transition: "all 0.2s",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "8px",
-              fontFamily: "'Poppins', sans-serif"
-            }}
-            onClick={(e) => {
-              e.preventDefault();
-              login();
-            }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.transform = "translateY(-1px)";
-              e.currentTarget.style.boxShadow = "0 12px 20px -5px rgba(79, 70, 229, 0.5)";
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.transform = "none";
-              e.currentTarget.style.boxShadow = "0 10px 15px -3px rgba(79, 70, 229, 0.4)";
-            }}
-            onMouseDown={(e) => e.currentTarget.style.transform = "scale(0.98)"}
-            onMouseUp={(e) => e.currentTarget.style.transform = "translateY(-1px)"}
-          >
-            Sign In
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-          </button>
-        </div>
-      </div>
+      <Login 
+        setAuth={setAuth} 
+        setIsLoading={setIsLoading} 
+        availableColleges={availableColleges} 
+      />
     );
   }
 
@@ -462,7 +224,6 @@ const App: React.FC = () => {
           boxShadow: "0 2px 10px rgba(0,0,0,0.3)"
         }}
       >
-        <div style={{ position: "absolute", top: "-5px", left: "50%", transform: "translateX(-50%)", fontSize: "10px", color: "rgba(255,255,255,0.5)" }}>BANNER ACTIVE</div>
         <button
           style={{
             fontFamily: "Times New Roman",
@@ -489,40 +250,29 @@ const App: React.FC = () => {
           </h2>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <label style={{ fontSize: "14px", fontWeight: "500" }}>Session:</label>
-            <select
-              value={selectedSession}
-              onChange={handleSessionChange}
-              style={{
-                backgroundColor: "rgba(255, 255, 255, 0.1)",
-                color: "white",
-                border: "1px solid rgba(255, 255, 255, 0.3)",
-                borderRadius: "4px",
-                padding: "4px 8px",
-                fontSize: "14px",
-                outline: "none",
-                cursor: "pointer",
-              }}
-            >
-              <option value="" disabled style={{ color: "black" }}>Select Session</option>
-              {sessions.map((s) => (
-                <option key={s.id} value={s.year} style={{ color: "black" }}>
-                  {s.year}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>ERP - Pallotii</div>
         </div>
       </div>
 
       <div className="App">
-        {isNavbarOpen && <Navbar auth={auth} logout={logout} />}
+        {isNavbarOpen && <Navbar auth={auth} logout={logout} onSessionChange={setSelectedSession} />}
         <div className="content-wrapper">
-          <Routes>
-            {/* If user hits /, it will redirect to /Dashboard for admin, and /Attendance for teacher */}
-            <Route path="/" element={auth?.role === "admin" ? <Navigate to="/Dashboard" /> : <Navigate to="/Attendance" />} />
+          {!selectedSession ? (
+            <div style={{ 
+              display: "flex", 
+              justifyContent: "center", 
+              alignItems: "center", 
+              height: "calc(100vh - 60px)",
+              flexDirection: "column",
+              color: "#64748b"
+            }}>
+              <School size={64} style={{ marginBottom: "20px", opacity: 0.2 }} />
+              <h2 style={{ fontWeight: "600", fontSize: "24px" }}>No Session Selected</h2>
+              <p>Please use the sidebar to select an academic session to view data.</p>
+            </div>
+          ) : (
+            <Routes key={selectedSession}>
+              {/* If user hits /, it will redirect to /Dashboard for admin, and /Attendance for teacher */}
+              <Route path="/" element={auth?.role === "admin" ? <Navigate to="/Dashboard" /> : <Navigate to="/Attendance" />} />
             <Route
               path="/Dashboard"
               element={
@@ -632,6 +382,7 @@ const App: React.FC = () => {
               }
             />
           </Routes>
+          )}
         </div>
       </div>
       <Chatbot />

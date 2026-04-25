@@ -590,6 +590,7 @@ const promotionData = {
   router.get("/control/users", async (req, res) => {
     try {
       const users = await prisma.user.findMany({
+        where: { college: req.college },
         select: { id: true, username: true, role: true, college: true }
       });
       res.status(200).json(users);
@@ -600,11 +601,13 @@ const promotionData = {
   });
 
   router.post("/control/user", async (req, res) => {
-    const { username, password, role, college } = req.body;
+    const { username, password, role } = req.body;
+    const activeCollege = req.college; // Use the college from middleware/headers
+
     if (!username || !password || !role) return res.status(400).json({ error: 'All fields are required' });
     try {
       const result = await prisma.user.create({
-        data: { username, password, role, college }
+        data: { username, password, role, college: activeCollege }
       });
       res.status(200).json({ id: result.id, username: result.username, role: result.role, college: result.college });
     } catch (error) {
@@ -616,13 +619,54 @@ const promotionData = {
   router.delete("/control/user/:id", async (req, res) => {
     const { id } = req.params;
     try {
+      const userId = parseInt(id);
+      
+      // Verification check: only delete if user belongs to the same college
+      const userToDelete = await prisma.user.findFirst({
+        where: { id: userId, college: req.college }
+      });
+
+      if (!userToDelete) {
+        return res.status(403).json({ error: 'Unauthorized to delete this user or user not found' });
+      }
+
       await prisma.user.delete({
-        where: { id: parseInt(id) }
+        where: { id: userId }
       });
       res.status(200).json({ message: 'User deleted successfully' });
     } catch (error) {
       console.error('Error deleting user:', error);
       res.status(500).json({ error: 'Failed to delete user' });
+    }
+  });
+
+  router.put("/control/user/:id", async (req, res) => {
+    const { id } = req.params;
+    const { username, password, role } = req.body;
+    try {
+      const userId = parseInt(id);
+      
+      // Verification check: only update if user belongs to the same college
+      const userToUpdate = await prisma.user.findFirst({
+        where: { id: userId, college: req.college }
+      });
+
+      if (!userToUpdate) {
+        return res.status(403).json({ error: 'Unauthorized to update this user or user not found' });
+      }
+
+      const updated = await prisma.user.update({
+        where: { id: userId },
+        data: {
+          username: username || undefined,
+          password: password || undefined,
+          role: role || undefined
+        }
+      });
+      res.status(200).json({ message: 'User updated successfully', updated });
+    } catch (error) {
+      console.error('Error updating user:', error);
+      res.status(500).json({ error: 'Failed to update user' });
     }
   });
 

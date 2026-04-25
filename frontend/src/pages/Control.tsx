@@ -57,6 +57,9 @@ interface College {
 
 const Control: React.FC = () => {
   // State declarations - organized at top
+  const userRole = localStorage.getItem('userRole');
+  const userCollege = localStorage.getItem('userCollege');
+
   const [Standard, setStandard] = useState<string>('');
   const [standardCategory, setStandardCategory] = useState<string>('');
   const [StandardTotalFees, setStandardTotalFees] = useState<number>(0);
@@ -96,6 +99,7 @@ const Control: React.FC = () => {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [selectedSessionForConfig, setSelectedSessionForConfig] = useState<string>("");
   const [isLoadingConfig, setIsLoadingConfig] = useState<boolean>(false);
+  const [configStatus, setConfigStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   // Keep isLoadingConfig used to satisfy lint
   useEffect(() => {
     if (isLoadingConfig) console.log("Loading config...");
@@ -117,6 +121,10 @@ const Control: React.FC = () => {
   const [editedTotalFees, setEditedTotalFees] = useState<number>(0);
   const [editedCategory, setEditedCategory] = useState<string>('');
   const [selectedSubjectsStandard, setSelectedSubjectsStandard] = useState<string>('');
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editedUsername, setEditedUsername] = useState<string>('');
+  const [editedPassword, setEditedPassword] = useState<string>('');
+  const [editedUserRole, setEditedUserRole] = useState<string>('');
 
   // Fetch standards on component mount
   useEffect(() => {
@@ -385,9 +393,10 @@ const Control: React.FC = () => {
   };
 
   const handleControlChanges = async () => {
+    setConfigStatus(null);
     try {
       if (!selectedSessionForConfig) {
-        alert('Please select a session before saving configuration.');
+        setConfigStatus({ type: 'error', message: 'Please select a session before saving configuration.' });
         return;
       }
 
@@ -403,21 +412,18 @@ const Control: React.FC = () => {
         college: localStorage.getItem('userCollege') || undefined,
       };
 
-      const controlDataStatus = await addControlValues(data);
-      if (controlDataStatus) {
-        alert('Data Added Successfully');
-        // Notify other parts of the app (e.g., Navbar) to refresh config for this session
+      const res = await addControlValues(data);
+      if (res) {
+        setConfigStatus({ type: 'success', message: `Configuration for ${selectedSessionForConfig} updated successfully!` });
+        // Notify other parts of the app
         try {
           window.dispatchEvent(new CustomEvent('controlUpdated', { detail: { year: selectedSessionForConfig } }));
         } catch (e) { }
       }
-    } catch (error) {
-      const errorData = error as AxiosError<{ errorMsg: string }>;
-      if (errorData?.response?.status === 400) {
-        alert(errorData?.response?.data?.errorMsg || 'An unknown error occurred.');
-      } else {
-        alert('Something went wrong. Please try again later.');
-      }
+    } catch (error: any) {
+      console.error('Control update error:', error);
+      const errMsg = error.response?.data?.error || error.response?.data?.errorMsg || error.message || 'Something went wrong';
+      setConfigStatus({ type: 'error', message: `Failed to update: ${errMsg}` });
     }
   };
 
@@ -500,13 +506,20 @@ const Control: React.FC = () => {
     }
 
     try {
-      // Check if this college is already in our managed list
+      // If admin, enforce their own college. If not (superadmin?), use selected or default.
+      const collegeName = userRole === 'admin' ? userCollege : (newUserCollege === "new" ? newCollegeName.trim() : newUserCollege.trim());
+      
+      if (!collegeName) {
+        alert("College name is required.");
+        return;
+      }
+
+      // Auto-add new college if needed (only for superadmins or when allowed)
       const existingCollege = colleges.find(c => c.name.toLowerCase() === collegeName.toLowerCase());
-      if (!existingCollege) {
-        // Auto-add new college to the system
+      if (!existingCollege && userRole !== 'admin') {
         try {
           await addCollege(collegeName);
-          await loadColleges(); // Refresh dropdown list
+          await loadColleges(); 
         } catch (e) {
           console.warn('Could not auto-add college:', e);
         }
@@ -517,7 +530,7 @@ const Control: React.FC = () => {
       setNewUsername('');
       setNewPassword('');
       setNewUserRole('teacher');
-      setNewUserCollege(colleges.length > 0 ? colleges[0].name : '');
+      setNewUserCollege(userCollege || (colleges.length > 0 ? colleges[0].name : ''));
       setNewCollegeName('');
       setShowNewCollegeInput(false);
       loadUsers();
@@ -537,6 +550,28 @@ const Control: React.FC = () => {
         console.error('Error deleting user:', error);
         alert('Failed to delete user');
       }
+    }
+  };
+
+  const handleUpdateUser = async () => {
+    if (!editingUser) return;
+    if (!editedUsername.trim()) {
+      alert("Username is required.");
+      return;
+    }
+
+    try {
+      await updateUser(editingUser.id, {
+        username: editedUsername,
+        password: editedPassword || undefined, // Only update password if provided
+        role: editedUserRole
+      });
+      alert('User updated successfully');
+      setEditingUser(null);
+      loadUsers();
+    } catch (error) {
+      console.error('Error updating user:', error);
+      alert('Failed to update user');
     }
   };
 
@@ -663,167 +698,171 @@ const Control: React.FC = () => {
         <button className="btn manage-btn" onClick={() => { setShowManageStandards(!showManageStandards); if (!showManageStandards) loadAllStandards(); }}>
           {showManageStandards ? 'Hide' : 'Manage'} Standards
         </button>
-        <button className="btn manage-btn" style={{ marginLeft: '10px' }} onClick={() => setShowManageCategories(!showManageCategories)}>
-          {showManageCategories ? 'Hide' : 'Manage'} Categories
-        </button>
-        <button className="btn manage-btn" style={{ marginLeft: '10px' }} onClick={() => setShowManageUsers(!showManageUsers)}>
-          {showManageUsers ? 'Hide' : 'Manage'} Users
-        </button>
-        <button className="btn manage-btn" style={{ marginLeft: '10px' }} onClick={() => setShowManageColleges(!showManageColleges)}>
-          {showManageColleges ? 'Hide' : 'Manage'} Colleges
-        </button>
       </div>
 
-      {/* Manage Users Section */}
-      {showManageUsers && (
-        <div className="manage-section">
-          <h3>Manage Users</h3>
-          <div className="add-form" style={{ marginBottom: '20px' }}>
-            <input
-              type="text"
-              placeholder="Username"
-              value={newUsername}
-              onChange={(e) => setNewUsername(e.target.value)}
-            />
-            <input
-              type="password"
-              placeholder="Password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-            />
-            <select 
-              value={newUserCollege} 
-              onChange={(e) => {
-                setNewUserCollege(e.target.value);
-                setShowNewCollegeInput(e.target.value === "new");
-              }}
-            >
-              {colleges.map(col => (
-                <option key={col.id} value={col.name}>{col.name}</option>
-              ))}
-              <option value="new">+ Add New College...</option>
-            </select>
-            {showNewCollegeInput && (
-              <input
-                type="text"
-                placeholder="Enter New College Name"
-                value={newCollegeName}
-                onChange={(e) => setNewCollegeName(e.target.value)}
-              />
-            )}
-            <select value={newUserRole} onChange={(e) => setNewUserRole(e.target.value)}>
-              <option value="admin">Admin</option>
-              <option value="teacher">Teacher</option>
-            </select>
-            <button className="btn" onClick={handleAddUser}>Add User</button>
-          </div>
-          <table className="manage-table">
-            <thead>
-              <tr>
-                <th>Username</th>
-                <th>Role</th>
-                <th>College</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {Array.isArray(users) && users.map(user => (
-                <tr key={user.id}>
-                  <td>{user.username}</td>
-                  <td style={{ textTransform: 'capitalize' }}>{user.role}</td>
-                  <td>{user.college || 'N/A'}</td>
-                  <td>
+      {/* Manage Teachers and Admin Section */}
+      <div className="control-section">
+        <h2>Manage Teachers and Admin</h2>
+        <div className="add-form" style={{ marginBottom: '20px' }}>
+          <input
+            type="text"
+            placeholder="Username"
+            value={newUsername}
+            onChange={(e) => setNewUsername(e.target.value)}
+          />
+          <input
+            type="password"
+            placeholder="Password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+          />
+          {userRole === 'admin' ? (
+            <input type="text" value={userCollege || ''} disabled style={{ backgroundColor: '#f3f4f6' }} />
+          ) : (
+            <>
+              <select 
+                value={newUserCollege} 
+                onChange={(e) => {
+                  setNewUserCollege(e.target.value);
+                  setShowNewCollegeInput(e.target.value === "new");
+                }}
+              >
+                {colleges.map(col => (
+                  <option key={col.id} value={col.name}>{col.name}</option>
+                ))}
+                <option value="new">+ Add New College...</option>
+              </select>
+              {showNewCollegeInput && (
+                <input
+                  type="text"
+                  placeholder="Enter New College Name"
+                  value={newCollegeName}
+                  onChange={(e) => setNewCollegeName(e.target.value)}
+                />
+              )}
+            </>
+          )}
+          <select value={newUserRole} onChange={(e) => setNewUserRole(e.target.value)}>
+            <option value="admin">Admin</option>
+            <option value="teacher">Teacher</option>
+          </select>
+          <button className="btn" onClick={handleAddUser}>Add User</button>
+        </div>
+        <table className="manage-table">
+          <thead>
+            <tr>
+              <th>Username</th>
+              <th>Role</th>
+              <th>College</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {Array.isArray(users) && users.map(user => (
+              <tr key={user.id}>
+                <td>{user.username}</td>
+                <td style={{ textTransform: 'capitalize' }}>{user.role}</td>
+                <td>{user.college || 'N/A'}</td>
+                <td>
+                  <div style={{ display: 'flex', gap: '5px' }}>
+                    <button
+                      className="btn-edit"
+                      onClick={() => {
+                        setEditingUser(user);
+                        setEditedUsername(user.username);
+                        setEditedPassword('');
+                        setEditedUserRole(user.role);
+                      }}
+                    >
+                      Edit
+                    </button>
                     <button
                       className="btn-delete"
                       onClick={() => handleDeleteUser(user.id)}
                     >
                       Delete
                     </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Manage Colleges Section */}
-      {showManageColleges && (
-        <div className="manage-section">
-          <h3>Manage Colleges</h3>
-          <div className="add-form" style={{ marginBottom: '20px' }}>
-            <input
-              type="text"
-              placeholder="New College Name"
-              value={newCollegeName}
-              onChange={(e) => setNewCollegeName(e.target.value)}
-            />
-            <button className="btn" onClick={handleAddCollege}>Add College</button>
-          </div>
-          <table className="manage-table">
-            <thead>
-              <tr>
-                <th>College Name</th>
-                <th>Actions</th>
+                  </div>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {colleges.map(col => (
-                <tr key={col.id}>
-                  <td>{col.name}</td>
-                  <td>
-                    <button
-                      className="btn-delete"
-                      onClick={() => handleDeleteCollege(col.id)}
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+            ))}
+          </tbody>
+        </table>
+
+        {editingUser && (
+          <div className="edit-modal" style={{ marginTop: '20px', padding: '15px', border: '1px solid #ddd', borderRadius: '8px', backgroundColor: '#f9fafb' }}>
+            <h4>Edit User: {editingUser.username}</h4>
+            <div className="add-form">
+              <div style={{ marginBottom: '10px' }}>
+                <label style={{ display: 'block', fontSize: '12px', color: '#666' }}>Username</label>
+                <input
+                  type="text"
+                  value={editedUsername}
+                  onChange={(e) => setEditedUsername(e.target.value)}
+                />
+              </div>
+              <div style={{ marginBottom: '10px' }}>
+                <label style={{ display: 'block', fontSize: '12px', color: '#666' }}>New Password (leave blank to keep current)</label>
+                <input
+                  type="password"
+                  placeholder="********"
+                  value={editedPassword}
+                  onChange={(e) => setEditedPassword(e.target.value)}
+                />
+              </div>
+              <div style={{ marginBottom: '10px' }}>
+                <label style={{ display: 'block', fontSize: '12px', color: '#666' }}>Role</label>
+                <select value={editedUserRole} onChange={(e) => setEditedUserRole(e.target.value)}>
+                  <option value="admin">Admin</option>
+                  <option value="teacher">Teacher</option>
+                </select>
+              </div>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button className="btn" onClick={handleUpdateUser}>Update Details</button>
+                <button className="btn" style={{ backgroundColor: '#6b7280' }} onClick={() => setEditingUser(null)}>Cancel</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
 
       {/* Manage Categories Section */}
-      {showManageCategories && (
-        <div className="manage-section">
-          <h3>Manage Categories</h3>
-          <div style={{ marginBottom: '20px', display: 'flex', gap: '10px' }}>
-            <input
-              type="text"
-              placeholder="New Category Name"
-              value={newCategoryName}
-              onChange={(e) => setNewCategoryName(e.target.value)}
-            />
-            <button className="btn" onClick={handleAddCategory}>Add Category</button>
-          </div>
-          <table className="manage-table">
-            <thead>
-              <tr>
-                <th>Category Name</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {Array.isArray(categories) && categories.map(cat => (
-                <tr key={cat.id}>
-                  <td>{cat.name}</td>
-                  <td>
-                    <button
-                      className="btn-delete"
-                      onClick={() => handleDeleteCategory(cat.id)}
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <div className="control-section">
+        <h2>Manage Categories</h2>
+        <div style={{ marginBottom: '20px', display: 'flex', gap: '10px' }}>
+          <input
+            type="text"
+            placeholder="New Category Name"
+            value={newCategoryName}
+            onChange={(e) => setNewCategoryName(e.target.value)}
+          />
+          <button className="btn" onClick={handleAddCategory}>Add Category</button>
         </div>
-      )}
+        <table className="manage-table">
+          <thead>
+            <tr>
+              <th>Category Name</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {Array.isArray(categories) && categories.map(cat => (
+              <tr key={cat.id}>
+                <td>{cat.name}</td>
+                <td>
+                  <button
+                    className="btn-delete"
+                    onClick={() => handleDeleteCategory(cat.id)}
+                  >
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       {/* Manage Standards Section */}
       {showManageStandards && (
@@ -1029,14 +1068,32 @@ const Control: React.FC = () => {
           value={lunchFee}
           onChange={(e) => setLunchFee(Number(e.target.value))}
         />
-        <label>Session:</label>
         <select value={selectedSessionForConfig} onChange={(e) => setSelectedSessionForConfig(e.target.value)}>
           <option value="">Select Session (required)</option>
           {sessions.map(s => (
             <option key={s.id} value={s.year}>{s.year}</option>
           ))}
         </select>
-        <button onClick={handleControlChanges}>Submit</button>
+
+        {isLoadingConfig && <p style={{ color: '#3b82f6', fontSize: '14px' }}>Loading configuration data...</p>}
+        
+        {configStatus && (
+          <div style={{ 
+            padding: '10px', 
+            borderRadius: '4px', 
+            marginBottom: '15px',
+            backgroundColor: configStatus.type === 'success' ? '#dcfce7' : '#fee2e2',
+            color: configStatus.type === 'success' ? '#166534' : '#991b1b',
+            border: `1px solid ${configStatus.type === 'success' ? '#bbf7d0' : '#fecaca'}`
+          }}>
+            {configStatus.message}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button className="btn" onClick={handleControlChanges}>Submit</button>
+          <button className="btn" style={{ backgroundColor: '#4f46e5' }} onClick={handleControlChanges}>Update</button>
+        </div>
       </div>
 
       <br />

@@ -78,17 +78,22 @@ const Student: React.FC = () => {
   const [subjects, setSubjects] = useState<any[]>([]);
   const [tc, setTc] = useState({
     schoolName: 'ST. VINCENT PALLOTTI CATHOLIC SCHOOL WESTWOOD, LUSAKA, ZAMBIA',
+    schoolAddress: 'WESTWOOD, LUSAKA, ZAMBIA',
+    schoolLogo: '',
     email: 'stvincentpzambia@yahoo.com',
-    class: '',
     rollNo: '',
+    class: '',
     studentName: '',
+    fatherName: '',
+    motherName: '',
     nationality: '',
     dateOfBirth: '',
     admittedClass: '',
     presentGrade: '',
     lastAttendanceDate: '',
     annualResult: '',
-    remarks: ''
+    remarks: '',
+    admissionNo: ''
   });
   const [student, setStudent] = useState<Student>({
     fullName: "",
@@ -476,23 +481,49 @@ const Student: React.FC = () => {
           studentName: student.fullName || '',
           nationality: student.nationality || '',
           dateOfBirth: student.dateOfBirth ? new Date(student.dateOfBirth).toISOString().split('T')[0] : '',
-          admittedClass: student.standard || ''
+          admittedClass: student.standard || '',
+          admissionNo: student.id.toString(),
+          fatherName: student.parents?.[0]?.fatherName || '',
+          motherName: student.parents?.[0]?.motherName || ''
         }));
+
+        // Fetch institution details - only overwrite if we have real data (not defaults)
+        try {
+          const configRes = await axios.get(`http://${window.location.hostname}:5000/api/config?college=${localStorage.getItem('userCollege') || ''}&session=${localStorage.getItem('selectedSession') || ''}`);
+          if (configRes.data) {
+            setTc(prev => ({
+              ...prev,
+              schoolName: (configRes.data.Institution_name && configRes.data.Institution_name !== 'School') ? configRes.data.Institution_name : prev.schoolName,
+              schoolAddress: (configRes.data.SchoolAddress && configRes.data.SchoolAddress !== 'Address') ? configRes.data.SchoolAddress : prev.schoolAddress,
+              schoolLogo: configRes.data.SchoolLogo || prev.schoolLogo
+            }));
+          }
+        } catch (e) { console.error('Error fetching config for TC:', e); }
+
         // Fetch marks and calculate annual result and grade
         try {
           const marksResponse = await axios.get(`http://${window.location.hostname}:5000/api/marks/${studentId}`);
           const marks = marksResponse.data;
-          const totalObtained = marks.reduce((sum: number, m: any) => sum + m.obtainedMarks, 0);
-          const totalPossible = marks.reduce((sum: number, m: any) => sum + m.totalMarks, 0);
+          
+          // Filter for Final exam or Annual if possible, or just use all
+          const finalMarks = marks.filter((m: any) => m.examinationType === 'Annual' || m.examinationType === 'Final Semester');
+          const sourceMarks = finalMarks.length > 0 ? finalMarks : marks;
+
+          const totalObtained = sourceMarks.reduce((sum: number, m: any) => sum + m.obtainedMarks, 0);
+          const totalPossible = sourceMarks.reduce((sum: number, m: any) => sum + m.totalMarks, 0);
           const overallPercentage = totalPossible > 0 ? (totalObtained / totalPossible) * 100 : 0;
-          const result = overallPercentage >= 35 ? 'Passed' : 'Failed';
+          
+          // 45% threshold as requested
+          const result = overallPercentage >= 45 ? 'Passed' : 'Failed';
+          
           let grade = '';
-          if (overallPercentage > 90) grade = 'A+';
+          if (overallPercentage >= 90) grade = 'A+';
           else if (overallPercentage >= 80) grade = 'A';
           else if (overallPercentage >= 70) grade = 'B';
-          else if (overallPercentage >= 50) grade = 'C';
-          else if (overallPercentage >= 35) grade = 'D';
+          else if (overallPercentage >= 60) grade = 'C';
+          else if (overallPercentage >= 45) grade = 'D';
           else grade = 'F';
+          
           setTc((prev) => ({ ...prev, annualResult: result, presentGrade: grade }));
         } catch (marksError) {
           console.error('Error fetching marks:', marksError);
@@ -1191,28 +1222,82 @@ const Student: React.FC = () => {
               onChange={(e) => handleTcChange(e, 'remarks')}
             />
           </div>
-          <div className="tc" id="tc">
-            <div className="tc-header">
-              <p><strong>School Name:</strong> {tc.schoolName}</p>
-              <p><strong>Email:</strong> {tc.email}</p>
-            </div>
-            <h2 style={{textAlign: 'center'}}>Transfer Certificate</h2>
-            <p><strong>Name of Student:</strong> {tc.studentName}</p>
-            <p><strong>Nationality:</strong> {tc.nationality}</p>
-            <p><strong>Date of Birth:</strong> {tc.dateOfBirth}</p>
-            <p><strong>Class to which student was admitted:</strong> {tc.admittedClass}</p>
-            <p><strong>Present Grade:</strong> {tc.presentGrade}</p>
-            <p><strong>Last date of attendance in the school:</strong> {tc.lastAttendanceDate}</p>
-            <p><strong>Result of annual examination:</strong> {tc.annualResult}</p>
-            <p><strong>Remarks:</strong> {tc.remarks}</p>
-            <div className="signatures">
-              <div className="signature-left">
-                <span>Principal</span>
-                <div className="signature-line"></div>
-              </div>
-              <div className="signature-right">
-                <span>Head Teacher</span>
-                <div className="signature-line"></div>
+          <div className="tc-container-wrapper">
+            <div className="tc" id="tc">
+              {tc.schoolLogo && <img src={tc.schoolLogo} alt="Watermark" className="tc-watermark" />}
+              <div className="tc-inner">
+                <div className="tc-header">
+                  <h1 className="tc-school-name">{tc.schoolName}</h1>
+                  <p className="tc-school-details">(Affiliated to CBSE, New Delhi, No.230149)</p>
+                  <p className="tc-school-details">{tc.schoolAddress}</p>
+                  <p className="tc-school-code">School Code: 30138</p>
+                </div>
+
+                <div className="tc-logo-container">
+                  {tc.schoolLogo && <img src={tc.schoolLogo} alt="School Logo" className="tc-logo" />}
+                </div>
+
+                <div style={{ textAlign: 'center' }}>
+                  <div className="tc-title-box">
+                    TRANSFER/SCHOOL LEAVING CERTIFICATE
+                  </div>
+                </div>
+
+                <div className="tc-meta-row">
+                  <div>Sl. No: <span className="tc-dotted">{tc.admissionNo}</span></div>
+                  <div>Date: <span className="tc-dotted">{new Date().toLocaleDateString()}</span></div>
+                </div>
+
+                <div className="tc-body">
+                  <p>
+                    This is to certify that Shri/Miss <span className="tc-dotted" style={{ minWidth: '300px' }}>{tc.studentName}</span>
+                  </p>
+                  <p>
+                    Son/Daughter of Shri/Late <span className="tc-dotted" style={{ minWidth: '300px' }}>{tc.fatherName}</span> of <span className="tc-dotted" style={{ minWidth: '200px' }}>{tc.nationality}</span>
+                  </p>
+                  <p>
+                    Village/Town <span className="tc-dotted" style={{ minWidth: '150px' }}>{tc.schoolAddress.split(',')[0]}</span> of District <span className="tc-dotted" style={{ minWidth: '150px' }}>{tc.schoolAddress.split(',')[1] || ''}</span> State <span className="tc-dotted" style={{ minWidth: '150px' }}>ZAMBIA</span>
+                  </p>
+                  <p>
+                    was admitted to the School on <span className="tc-dotted" style={{ minWidth: '150px' }}>{tc.dateOfBirth}</span> and left on <span className="tc-dotted" style={{ minWidth: '150px' }}>{tc.lastAttendanceDate || new Date().toLocaleDateString()}</span>
+                  </p>
+                  <p>
+                    He/She was reading in class <span className="tc-dotted">{tc.class}</span> and passed to class/detained in Class <span className="tc-dotted">{tc.annualResult === 'Passed' ? (parseInt(tc.class) + 1).toString() : tc.class}</span>.
+                  </p>
+                  <p>
+                    He/She passed/failed in the Annual Examination held in <span className="tc-dotted">{new Date().getFullYear()}</span> under the school board.
+                  </p>
+                  <p>
+                    All the dues are cleared.
+                  </p>
+                  <p>
+                    His/Her date of birth according to our Admission Register is <span className="tc-dotted">{tc.dateOfBirth}</span>
+                  </p>
+                  <p>
+                    His/her character and conduct were <span className="tc-dotted">{tc.remarks || 'Satisfactory'}</span>.
+                  </p>
+                </div>
+
+                <div className="tc-reasons">
+                  <h4>Reasons for leaving School: -</h4>
+                  <p>1. Unavoidable change of residence.</p>
+                  <p>2. Ill Health.</p>
+                  <p>3. Completion of School Course.</p>
+                  <p>4. Minor reasons.</p>
+                  <p>5. Guardian option.</p>
+                </div>
+
+                <div className="tc-footer">
+                  <div className="tc-footer-left">
+                    <p>Date: <span className="tc-dotted" style={{ minWidth: '120px' }}>{new Date().toLocaleDateString()}</span></p>
+                    <p>Place: <span className="tc-dotted" style={{ minWidth: '120px' }}>{tc.schoolAddress.split(',')[1] || 'Lusaka'}</span></p>
+                  </div>
+                  <div className="tc-footer-right">
+                    <p>Principal</p>
+                    <p>{tc.schoolName}</p>
+                    <p>{tc.schoolAddress.split(',')[0]}</p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

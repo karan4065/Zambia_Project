@@ -134,11 +134,6 @@ router.use('/uploads', express.static(path.join(__dirname, 'uploads')));
       const where = { studentId: parseInt(studentId) };
       if (examinationType) {
         where.examinationType = examinationType;
-      } else {
-        // Default to 'Annual' for backward compatibility if needed, 
-        // or just return all. The user mentioned they want to see what they add.
-        // Let's default to 'Annual' for now but the frontend will pass the param.
-        where.examinationType = 'Annual';
       }
       
       const marks = await prisma.marks.findMany({

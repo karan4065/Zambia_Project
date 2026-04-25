@@ -135,32 +135,171 @@ strong {
   background-color: #313970;
 }
 
-.tc {
-  border: 1px solid #000;
-  padding: 20px;
+/* TC Styles - Matching the provided template image */
+.tc-container-wrapper {
   margin: 20px 0;
+  display: flex;
+  justify-content: center;
+  background-color: #f3f4f6;
+  padding: 20px 0;
+}
+
+.tc {
+  width: 210mm;
+  height: 297mm;
+  padding: 10mm;
   background-color: #fff;
+  font-family: 'Times New Roman', Times, serif;
+  color: #000;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+/* Background Watermark */
+.tc-watermark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 500px;
+  height: 500px;
+  opacity: 0.05;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.tc-inner {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .tc-header {
   text-align: center;
-  margin-bottom: 20px;
+  margin-bottom: 10px;
 }
 
-.tc-header p {
+.tc-school-name {
+  font-size: 32px;
+  color: #2e7d32; /* Green from the image */
+  margin: 0;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.tc-school-details {
+  font-size: 14px;
+  margin: 2px 0;
+  font-weight: 600;
+}
+
+.tc-school-code {
+  font-size: 14px;
+  font-weight: bold;
   margin: 5px 0;
 }
 
+.tc-logo-container {
+  display: flex;
+  justify-content: center;
+  margin: 10px 0;
+}
+
+.tc-logo {
+  width: 100px;
+  height: 100px;
+  object-fit: contain;
+  border-radius: 50%;
+}
+
+.tc-title-box {
+  border: 1.5px solid #000;
+  display: inline-block;
+  padding: 5px 20px;
+  margin: 10px auto;
+  font-weight: bold;
+  font-size: 18px;
+  text-transform: uppercase;
+}
+
+.tc-meta-row {
+  display: flex;
+  justify-content: space-between;
+  margin: 10px 0;
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.tc-body {
+  font-size: 16px;
+  line-height: 2.2;
+  text-align: justify;
+}
+
+.tc-dotted {
+  border-bottom: 1px dotted #000;
+  padding: 0 10px;
+  font-weight: bold;
+  color: #1a237e; /* Slightly different color for data */
+  display: inline-block;
+  min-width: 100px;
+}
+
+.tc-reasons {
+  margin-top: 15px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.tc-reasons h4 {
+  text-decoration: underline;
+  margin-bottom: 5px;
+}
+
+.tc-footer {
+  margin-top: auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding-bottom: 20px;
+}
+
+.tc-footer-left {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.tc-footer-right {
+  text-align: center;
+  font-size: 14px;
+  font-weight: bold;
+}
+
 @media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
   body * {
     visibility: hidden;
   }
-  .marksheet, .marksheet *, .tc, .tc * {
+  .tc-container-wrapper, .tc-container-wrapper * {
     visibility: visible;
   }
-  .marksheet, .tc {
+  .tc-container-wrapper {
     position: absolute;
     left: 0;
     top: 0;
+    width: 210mm;
+    height: 297mm;
+    margin: 0;
+    padding: 0;
+    background: none;
+  }
+  .tc {
+    box-shadow: none;
   }
 }

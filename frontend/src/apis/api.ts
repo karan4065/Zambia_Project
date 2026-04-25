@@ -852,7 +852,7 @@ export const deleteCollege = async (id: number) => {
   }
 };
 
-// User Management APIs
+// User Management APIs (Restricted to school)
 export const fetchUsers = async () => {
   try {
     const response = await axios.get(`${root}/control/users`);
@@ -881,4 +881,13 @@ export const deleteUser = async (id: number) => {
     console.error('Error deleting user:', error);
     throw error;
   }
-};
+};
+export const updateUser = async (id: number, data: any) => {
+  try {
+    const response = await axios.put(`${root}/control/user/${id}`, data);
+    return response.data;
+  } catch (error) {
+    console.error('Error updating user:', error);
+    throw error;
+  }
+};

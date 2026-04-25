@@ -9,9 +9,10 @@ import axios from "axios";
 interface NavbarProps {
   auth: { token: string; role: "teacher" | "admin" } | null;
   logout: () => void;
+  onSessionChange: (session: string) => void;
 }
 
-const Navbar: React.FC<NavbarProps> = ({ auth, logout }) => {
+const Navbar: React.FC<NavbarProps> = ({ auth, logout, onSessionChange }) => {
   const links = [
     { name: "Dashboard", roles: ["admin"] },
     { name: "Student", roles: ["admin", "teacher"] },
@@ -63,48 +64,37 @@ const Navbar: React.FC<NavbarProps> = ({ auth, logout }) => {
     loadSessions();
   }, []);
 
-  const handleYearChange = async (event: { target: { value: SetStateAction<string> } }) => {
-    const selectedValue = event.target.value;
+  const handleYearChange = async (event: any) => {
+    const selectedValue = event.target.value as string;
+    if (!selectedValue) return;
+
     setSelectedYear(selectedValue);
-    // preview name immediately, fetch config for this session
     try {
-      const cfg = await fetchControlConfig(selectedValue as string);
-      setSchoolName(cfg?.Institution_name || "School");
-      setSchoolLogo(cfg?.SchoolLogo || "");
-    } catch (err) {
-      console.error("Failed to load config on selection change", err);
-      setSchoolName("School");
-    }
-  };
-
-  const submitSession = async () => {
-    try {
-      if (!selectYear) {
-        alert("Please select a session before proceeding.");
-        return;
-      }
-
+      // 1. Update on backend
       const response = await axios.get(`http://${window.location.hostname}:5000/setSession`, {
-        params: { year: selectYear },
+        params: { year: selectedValue },
       });
 
       if (response.status === 200) {
-        alert(response.data.message);
-        localStorage.setItem("selectedSession", selectYear);
-        setSessionSelected(true); // Mark session as selected
-        // Load control config for selected session
-        const cfg = await fetchControlConfig(selectYear as string);
+        // 2. Update localStorage and state
+        localStorage.setItem("selectedSession", selectedValue);
+        setSessionSelected(true);
+
+        // 3. Update school info (Recoil)
+        const cfg = await fetchControlConfig(selectedValue);
         setSchoolName(cfg?.Institution_name || "School");
         setSchoolLogo(cfg?.SchoolLogo || "");
-        // Removed window.location.reload() - let React handle state update instead
-      } else {
-        console.error("Unexpected response status:", response.status);
+
+        // 4. Notify parent App
+        onSessionChange(selectedValue);
       }
-    } catch (e) {
-      console.error("Error setting session:", e);
-      alert("Failed to set session. Please try again later.");
+    } catch (err) {
+      console.error("Failed to update session instantaneously:", err);
+      alert("Failed to set session. Please try again.");
     }
   };
+
+
 
   return (
     <div className="navbar">
@@ -126,9 +116,6 @@ const Navbar: React.FC<NavbarProps> = ({ auth, logout }) => {
               </option>
             ))}
           </select>
-          <button style={{ width: "150px", padding: "8px", marginTop: "12px", backgroundColor: "#313970",color:"white" }} onClick={submitSession}>
-            Select Session
-          </button>
           <button style={{ width: "150px", padding: "8px", marginTop: "12px", backgroundColor: "#dc2626", color: "white" }} onClick={logout}>
             Logout
           </button>
@@ -147,9 +134,6 @@ const Navbar: React.FC<NavbarProps> = ({ auth, logout }) => {
               </option>
             ))}
           </select>
-          <button style={{ width: "150px", padding: "10px", marginTop: "15px", backgroundColor: "#313970", color: "white" }} onClick={submitSession}>
-            Select Session
-          </button>
           <ul style={{ paddingLeft: "5px" }}>
             {auth &&
               links
