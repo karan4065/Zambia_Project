@@ -1,8 +1,8 @@
 import "../styles/marks.css";
 import DownloadMarks from "../components/Marks/DownloadMarks";
 import UploadMarks from "../components/Marks/UploadMarks";
-import { useState } from "react";
-import { fetchStudents } from "../apis/api";
+import { useState, useEffect } from "react";
+import { fetchStudents, fetchStandards } from "../apis/api";
 import { useRecoilValue } from "recoil";
 import axios from 'axios';
 import { standardList } from "../store/store";
@@ -31,6 +31,12 @@ interface SubjectTotals {
 
 const Marks: React.FC = () => {
   const [selectedStandard, setSelectedStandard] = useState<string>("");
+  const [selectedStandardId, setSelectedStandardId] = useState<string>("");
+  const [categories, setCategories] = useState<string[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>("");
+  const [allStandardsData, setAllStandardsData] = useState<any[]>([]);
+  const [filteredStandards, setFilteredStandards] = useState<any[]>([]);
+
   const [students, setStudents] = useState<Student[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [exam, setExam] = useState<string>("");
@@ -39,13 +45,33 @@ const Marks: React.FC = () => {
   const [loadingSubjects, setLoadingSubjects] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitMessage, setSubmitMessage] = useState("");
-  const standards = useRecoilValue(standardList);
 
-  // Fetch subjects with total marks based on selected standard
-  const fetchSubjectsList = async (standard: string) => {
+  // Fetch standards for the current session on mount
+  useEffect(() => {
+    const loadStandards = async () => {
+      try {
+        const response = await axios.get(`http://${window.location.hostname}:5000/control/standards`);
+        const data = Array.isArray(response.data) ? response.data : (response.data.standard || []);
+        setAllStandardsData(data);
+
+        const cats = new Set<string>();
+        data.forEach((s: any) => {
+          if (s.category) cats.add(s.category);
+          else cats.add("Uncategorized");
+        });
+        setCategories(Array.from(cats));
+      } catch (error) {
+        console.error("Error fetching standards:", error);
+      }
+    };
+    loadStandards();
+  }, []);
+
+  // Fetch subjects with total marks based on selected standard ID
+  const fetchSubjectsList = async (stdId: string) => {
     setLoadingSubjects(true);
     try {
-      const response = await axios.get(`http://${window.location.hostname}:5000/api/subjects-with-marks/${standard}`);
+      const response = await axios.get(`http://${window.location.hostname}:5000/api/subjects-by-stdid/${stdId}`);
       const subjectsData = response.data;
       setSubjects(subjectsData);
       
@@ -77,17 +103,43 @@ const Marks: React.FC = () => {
     }
   };
 
+  const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value;
+    setSelectedCategory(value);
+    setSelectedStandard("");
+    setSelectedStandardId("");
+    setMarks({});
+    setExam("");
+    setSubjects([]);
+    setStudents([]);
+    setSubjectTotals({});
+
+    if (value) {
+      const filtered = allStandardsData.filter(s => 
+        s.category === value || (value === "Uncategorized" && !s.category)
+      );
+      setFilteredStandards(filtered);
+    } else {
+      setFilteredStandards([]);
+    }
+  };
+
   // Handle standard change
   const handleStandardChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value;
-    setSelectedStandard(value);
+    const stdIdValue = e.target.value;
+    setSelectedStandardId(stdIdValue);
     setMarks({});
     setExam("");
 
-    if (value) {
-      await fetchSubjectsList(value);
-      await fetchStudentsList(value);
+    if (stdIdValue) {
+      const selectedObj = allStandardsData.find(s => s.id.toString() === stdIdValue);
+      if (selectedObj) {
+        setSelectedStandard(selectedObj.std);
+        await fetchSubjectsList(stdIdValue);
+        await fetchStudentsList(selectedObj.std);
+      }
     } else {
+      setSelectedStandard("");
       setStudents([]);
       setSubjects([]);
       setSubjectTotals({});
@@ -273,20 +325,41 @@ const Marks: React.FC = () => {
         <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#f5f5f5', borderRadius: '5px' }}>
           <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', marginBottom: '10px' }}>
             <div style={{ flex: '1', minWidth: '200px' }}>
+              <label htmlFor="category" style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                Select Category:
+              </label>
+              <select
+                id="category"
+                name="category"
+                value={selectedCategory}
+                onChange={handleCategoryChange}
+                style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
+              >
+                <option value="">Select category</option>
+                {categories.map((cat: string) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ flex: '1', minWidth: '200px' }}>
               <label htmlFor="standard" style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
                 Select Standard:
               </label>
               <select
                 id="standard"
                 name="standard"
-                value={selectedStandard}
+                value={selectedStandardId}
                 onChange={handleStandardChange}
+                disabled={!selectedCategory}
                 style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
               >
                 <option value="">Select standard</option>
-                {standards.map((standard: string) => (
-                  <option key={standard} value={standard}>
-                    {standard}
+                {filteredStandards.map((stdObj: any) => (
+                  <option key={stdObj.id} value={stdObj.id}>
+                    {stdObj.std}
                   </option>
                 ))}
               </select>
@@ -435,6 +508,18 @@ const Marks: React.FC = () => {
         {selectedStandard && students.length === 0 && !loadingSubjects && (
           <p style={{ textAlign: 'center', color: '#666', marginTop: '20px' }}>
             No students found for selected standard
+          </p>
+        )}
+
+        {selectedStandard && subjects.length === 0 && !loadingSubjects && (
+          <p style={{ textAlign: 'center', color: '#dc3545', marginTop: '20px' }}>
+            No subjects found for this standard. Please add subjects in the Control Panel first.
+          </p>
+        )}
+
+        {selectedStandard && subjects.length > 0 && students.length > 0 && !exam && (
+          <p style={{ textAlign: 'center', color: '#007bff', marginTop: '20px', fontWeight: 'bold' }}>
+            Please select an Examination Type to view the students and enter marks.
           </p>
         )}
       </div>

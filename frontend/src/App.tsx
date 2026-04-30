@@ -75,7 +75,16 @@ const App: React.FC = () => {
           const data = await getInstitutionNameAndLogo(year, college || undefined);
           setInstitutionName(data.Institution_name || "School");
           // Add cache buster to logo URL
-          const logoUrl = data.SchoolLogo ? `${data.SchoolLogo}?t=${Date.now()}` : "";
+          let logoUrl = "";
+          if (data.SchoolLogo) {
+            if (data.SchoolLogo.startsWith("http")) {
+              logoUrl = `${data.SchoolLogo}?t=${Date.now()}`;
+              // Replace localhost with window.location.hostname just in case
+              logoUrl = logoUrl.replace("localhost", window.location.hostname);
+            } else {
+              logoUrl = `http://${window.location.hostname}:5000${data.SchoolLogo.startsWith('/') ? '' : '/'}${data.SchoolLogo}?t=${Date.now()}`;
+            }
+          }
           setInstitutionLogo(logoUrl);
         } catch (err) {
           console.error("Error fetching institution data:", err);

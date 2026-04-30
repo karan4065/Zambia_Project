@@ -14,33 +14,48 @@ router.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
   router.get("/downloadMarks", async (req, res) => {
     try {
-      const feeRecord = await prisma.marks.findMany({ where: { college: req.college } });
+      const marksRecords = await prisma.marks.findMany({ 
+        where: { college: req.college },
+        include: {
+          student: true,
+          subject: {
+            include: { std: true }
+          }
+        }
+      });
   
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet("Marks");
   
       worksheet.columns = [
-        { header: "id", key: "id", width: 30 },
-        { header: "studentId", key: "studentId", width: 15 },
-        { header: "subjectId", key: "subjectId", width: 15 },
-        { header: "subjectName", key: "subjectName", width: 30 },
-        { header: "examinationType", key: "examinationType", width: 20 },
-        { header: "obtainedMarks", key: "obtainedMarks", width: 10 },
-        { header: "totalMarks ", key: "totalMarks", width: 10 },
-        { header: "percentage ", key: "percentage", width: 10 },
+        { header: "ID", key: "id", width: 10 },
+        { header: "Student Name", key: "studentName", width: 30 },
+        { header: "Roll No", key: "rollNo", width: 15 },
+        { header: "Session", key: "session", width: 15 },
+        { header: "Standard", key: "standard", width: 15 },
+        { header: "Category", key: "category", width: 20 },
+        { header: "Subject Name", key: "subjectName", width: 30 },
+        { header: "Examination Type", key: "examinationType", width: 20 },
+        { header: "Obtained Marks", key: "obtainedMarks", width: 15 },
+        { header: "Total Marks", key: "totalMarks", width: 15 },
+        { header: "Percentage", key: "percentage", width: 15 },
       ];
   
-      feeRecord.forEach((record) => {
+      marksRecords.forEach((record) => {
         worksheet.addRow({
           id                  : record.id,
-          studentId           : record.studentId,
-          subjectId           : record.subjectId,
+          studentName         : record.student?.fullName || "N/A",
+          rollNo              : record.student?.rollNo || "N/A",
+          session             : record.student?.session || "N/A",
+          standard            : record.subject?.std?.std || record.student?.standard || "N/A",
+          category            : record.subject?.std?.category || "N/A",
           subjectName         : record.subjectName,
           examinationType     : record.examinationType,
           obtainedMarks       : record.obtainedMarks,
           totalMarks          : record.totalMarks,
           percentage          : record.percentage,
-      })});
+        });
+      });
   
       res.setHeader(
         "Content-Type",
@@ -143,6 +158,24 @@ router.use('/uploads', express.static(path.join(__dirname, 'uploads')));
     } catch (error) {
       console.error("Error fetching marks:", error);
       res.status(500).json({ error: 'Failed to fetch marks' });
+    }
+  });
+
+  // Get subjects with total marks for a standard ID
+  router.get('/api/subjects-by-stdid/:stdId', async (req, res) => {
+    const { stdId } = req.params;
+    try {
+      const subjects = await prisma.subject.findMany({
+        where: { stdId: parseInt(stdId), college: req.college },
+        select: {
+          id: true,
+          name: true,
+        }
+      });
+      res.json(subjects);
+    } catch (error) {
+      console.error("Error fetching subjects with marks:", error);
+      res.status(500).json({ error: 'Failed to fetch subjects' });
     }
   });
 

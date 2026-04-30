@@ -248,6 +248,19 @@ router.get("/control/subjects/:id", async (req, res) => {
   }
 });
 
+// Get all subjects for college
+router.get("/control/all-subjects", async (req, res) => {
+  try {
+    const subjects = await prisma.subject.findMany({
+      where: { college: req.college }
+    });
+    res.status(200).json(subjects);
+  } catch (error) {
+    console.error("Error fetching all subjects:", error);
+    res.status(500).json({ error: "Failed to fetch subjects" });
+  }
+});
+
 // Delete a subject
 router.delete("/control/subject/:id", async (req, res) => {
   const { id } = req.params;

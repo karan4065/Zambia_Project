@@ -142,7 +142,19 @@ const Control: React.FC = () => {
     loadCategories();
     loadUsers();
     loadColleges();
+    loadAllSubjects();
   }, []);
+
+  const [allSubjects, setAllSubjects] = useState<any[]>([]);
+
+  const loadAllSubjects = async () => {
+    try {
+      const response = await axios.get(`http://${window.location.hostname}:5000/control/all-subjects`);
+      setAllSubjects(response.data);
+    } catch (error) {
+      console.error('Error loading all subjects:', error);
+    }
+  };
 
   const loadUsers = async () => {
     try {
@@ -842,24 +854,45 @@ const Control: React.FC = () => {
         <table className="manage-table">
           <thead>
             <tr>
-              <th>Category Name</th>
+              <th>Category Overview (Category - Standards - Subjects)</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {Array.isArray(categories) && categories.map(cat => (
-              <tr key={cat.id}>
-                <td>{cat.name}</td>
-                <td>
-                  <button
-                    className="btn-delete"
-                    onClick={() => handleDeleteCategory(cat.id)}
-                  >
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {Array.isArray(categories) && categories.map(cat => {
+              const catStandards = standards.filter(std => std.category === cat.name);
+              return (
+                <tr key={cat.id}>
+                  <td>
+                    <strong style={{ fontSize: "16px", color: "#333" }}>{cat.name}</strong>
+                    <div style={{ marginLeft: "20px", marginTop: "10px" }}>
+                      {catStandards.length > 0 ? catStandards.map(std => {
+                         const stdSubjects = allSubjects.filter(sub => sub.stdId === std.id);
+                         return (
+                           <div key={std.id} style={{ marginBottom: "10px", padding: "8px", backgroundColor: "#f9fafb", borderRadius: "4px", border: "1px solid #eee" }}>
+                             <div style={{ fontWeight: "bold", color: "#4f46e5", marginBottom: "4px" }}>Standard: {std.std} (Fees: ₹{std.totalFees || 0})</div>
+                             <div style={{ marginLeft: "15px", fontSize: "13px", color: "#555" }}>
+                               <strong>Subjects: </strong>
+                               {stdSubjects.length > 0 
+                                 ? stdSubjects.map(s => s.name).join(", ") 
+                                 : <span style={{ color: "#9ca3af" }}>No subjects added</span>}
+                             </div>
+                           </div>
+                         );
+                      }) : <div style={{ color: "#9ca3af", fontStyle: "italic", fontSize: "13px" }}>No standards in this category</div>}
+                    </div>
+                  </td>
+                  <td style={{ verticalAlign: "top", paddingTop: "15px" }}>
+                    <button
+                      className="btn-delete"
+                      onClick={() => handleDeleteCategory(cat.id)}
+                    >
+                      Delete Category
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -1024,6 +1057,14 @@ const Control: React.FC = () => {
       {/* Set Configurations Section */}
       <div className="control-section">
         <h2>Set Configurations</h2>
+        <label>Session (required):</label>
+        <select value={selectedSessionForConfig} onChange={(e) => setSelectedSessionForConfig(e.target.value)} style={{ marginBottom: "15px" }}>
+          <option value="">Select Session (required)</option>
+          {sessions.map(s => (
+            <option key={s.id} value={s.year}>{s.year}</option>
+          ))}
+        </select>
+
         <label>Set Institute Name:</label>
         <input
           type="text"
@@ -1033,6 +1074,11 @@ const Control: React.FC = () => {
         />
         <label>Set School Logo</label>
         <input type="file" accept="image/*" onChange={(e) => handleImageUpload(e)} />
+        {url && (
+          <div style={{ marginBottom: "10px" }}>
+            <img src={url.startsWith('http') ? url.replace("localhost", window.location.hostname) : url} alt="School Logo Preview" style={{ height: "60px", objectFit: "contain", borderRadius: "5px" }} />
+          </div>
+        )}
         <label>Set Hostel Name:</label>
         <input
           type="text"
@@ -1068,12 +1114,6 @@ const Control: React.FC = () => {
           value={lunchFee}
           onChange={(e) => setLunchFee(Number(e.target.value))}
         />
-        <select value={selectedSessionForConfig} onChange={(e) => setSelectedSessionForConfig(e.target.value)}>
-          <option value="">Select Session (required)</option>
-          {sessions.map(s => (
-            <option key={s.id} value={s.year}>{s.year}</option>
-          ))}
-        </select>
 
         {isLoadingConfig && <p style={{ color: '#3b82f6', fontSize: '14px' }}>Loading configuration data...</p>}
         

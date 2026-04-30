@@ -83,6 +83,7 @@ const Hostel = () => {
   const details = async (ele: number) => {
     try {
       const response = await fetchHostelData();
+      let found = false;
       response.data.result.forEach((e: any) => {
         if (e.bed_number === ele) {
           setData(e);
@@ -90,8 +91,15 @@ const Hostel = () => {
           setRollNo(e.rollNo);
           setStandard(e.standard);
           setShow(true);
+          found = true;
         }
       });
+      if (!found) {
+        // Bed is available
+        setBed(ele);
+        setShow(false);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
     } catch (error) {
       console.log('Error fetching details', error);
     }
@@ -216,7 +224,7 @@ const Hostel = () => {
                   </div>
                   <h2>Set Student Bed</h2>
                   <div>
-                    <input className='inputB' type='number' placeholder='Bed no.' onChange={(e) => { setBed(Number(e.target.value)); }} />
+                    <input className='inputB' type='number' placeholder='Bed no.' value={bed_no ?? ''} onChange={(e) => { setBed(Number(e.target.value)); }} />
                   </div>
                   <button onClick={submit}>Save</button>
                 </div>
